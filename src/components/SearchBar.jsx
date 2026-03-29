@@ -1,0 +1,285 @@
+import { useState, useEffect, useRef } from 'react'
+import { searchMovies } from '../utils/tmdb'
+import StatusBadge from './StatusBadge'
+
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+
+function Spinner() {
+  return (
+    <div className="w-4 h-4 rounded-full border-2 border-gray-700 border-t-indigo-400 animate-spin" />
+  )
+}
+
+function FilmIcon() {
+  return (
+    <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+        d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+    </svg>
+  )
+}
+
+export default function SearchBar({ onMovieSelect }) {
+  const [query,         setQuery]         = useState('')
+  const [results,       setResults]       = useState([])
+  const [isLoading,     setIsLoading]     = useState(false)
+  const [isOpen,        setIsOpen]        = useState(false)
+  const [apiKey,        setApiKey]        = useState(null)   // null = not yet loaded
+  const [error,         setError]         = useState(null)
+  const [statusCache,   setStatusCache]   = useState({})     // { [tmdb_id]: status | '__none__' }
+
+  const containerRef = useRef(null)
+  const inputRef     = useRef(null)
+  const debouncedQuery = useDebounce(query, 400)
+
+  // Load API key once on mount
+  useEffect(() => {
+    window.electronAPI.getSetting('tmdb_api_key').then((key) => {
+      setApiKey(key || '')
+    })
+  }, [])
+
+  // Run search when debounced query or apiKey changes
+  useEffect(() => {
+    if (apiKey === null) return          // not loaded yet
+    if (!debouncedQuery.trim()) {
+      setResults([])
+      setIsOpen(false)
+      setError(null)
+      return
+    }
+
+    setIsOpen(true)
+    setError(null)
+
+    if (!apiKey) return                  // key empty — dropdown shows warning, no fetch
+
+    let cancelled = false
+    setIsLoading(true)
+
+    searchMovies(debouncedQuery, apiKey)
+      .then((movies) => {
+        if (cancelled) return
+        setResults(movies)
+        setIsLoading(false)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setIsLoading(false)
+        setResults([])
+        if (err.message === 'INVALID_API_KEY') {
+          setError('Invalid TMDB API key. Check your Settings.')
+        } else if (err.message === 'NO_API_KEY') {
+          setError(null)   // handled separately
+        } else {
+          setError('Network error — check your connection.')
+        }
+      })
+
+    return () => { cancelled = true }
+  }, [debouncedQuery, apiKey])
+
+  // Close on click outside
+  useEffect(() => {
+    function onMouseDown(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
+
+  // Fetch DB status on hover — cached so it only calls once per tmdb_id per session
+  async function handleHover(tmdbId) {
+    if (tmdbId in statusCache) return
+    const movie = await window.electronAPI.getMovieById(tmdbId)
+    setStatusCache((prev) => ({
+      ...prev,
+      [tmdbId]: movie ? movie.status : '__none__',
+    }))
+  }
+
+  function handleSelect(movie) {
+    setIsOpen(false)
+    setQuery('')
+    setResults([])
+    setStatusCache({})
+    onMovieSelect(movie)
+    inputRef.current?.blur()
+  }
+
+  const showDropdown = isOpen && query.trim().length > 0
+
+  return (
+    <div ref={containerRef} className={`relative w-full max-w-2xl${showDropdown ? ' z-50' : ''}`}>
+
+      {/* ── Input ─────────────────────────────────────────────────────────── */}
+      <div className="relative">
+        {/* Search icon */}
+        <svg
+          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => { if (query.trim()) setIsOpen(true) }}
+          placeholder="Search movies…"
+          className="
+            w-full rounded-lg border border-gray-700 bg-gray-900
+            py-2.5 pl-10 pr-10 text-sm text-white placeholder-gray-500
+            focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500
+            transition-colors
+          "
+        />
+
+        {/* Right-side: spinner or clear button */}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          {isLoading ? (
+            <Spinner />
+          ) : query.length > 0 ? (
+            <button
+              onClick={() => { setQuery(''); setResults([]); setIsOpen(false); inputRef.current?.focus() }}
+              className="text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {/* ── Backdrop — blocks library clicks, closes dropdown ────────────── */}
+      {showDropdown && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* ── Dropdown ──────────────────────────────────────────────────────── */}
+      {showDropdown && (
+        <div className="
+          absolute top-full left-0 right-0 z-50 mt-1.5
+          overflow-hidden rounded-lg border border-gray-700
+          bg-gray-900 shadow-2xl shadow-black/70
+        ">
+          {/* No API key */}
+          {!apiKey && (
+            <div className="flex items-center gap-2.5 px-4 py-3.5 text-sm text-gray-400">
+              <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Add your TMDB API key in Settings to search movies
+            </div>
+          )}
+
+          {/* Error state */}
+          {apiKey && error && (
+            <div className="flex items-center gap-2.5 px-4 py-3.5 text-sm text-red-400">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {error}
+            </div>
+          )}
+
+          {/* Loading — results slot is blank; spinner in input is enough */}
+          {apiKey && isLoading && (
+            <div className="px-4 py-3.5 text-sm text-gray-500">Searching…</div>
+          )}
+
+          {/* No results */}
+          {apiKey && !isLoading && !error && results.length === 0 && debouncedQuery.trim() && (
+            <div className="px-4 py-3.5 text-sm text-gray-500">
+              No results for <span className="text-gray-300">"{debouncedQuery}"</span>
+            </div>
+          )}
+
+          {/* Results list */}
+          {apiKey && !isLoading && !error && results.length > 0 && (
+            <ul className="max-h-[420px] overflow-y-auto divide-y divide-gray-800/60">
+              {results.map((movie) => {
+                const cachedStatus = statusCache[movie.tmdb_id]
+                const inLibrary    = cachedStatus && cachedStatus !== '__none__'
+
+                return (
+                  <li
+                    key={movie.tmdb_id}
+                    onMouseEnter={() => handleHover(movie.tmdb_id)}
+                    onClick={() => handleSelect(movie)}
+                    className="
+                      flex items-center gap-3 px-3 py-2.5
+                      hover:bg-gray-800/70 cursor-pointer
+                      transition-colors group
+                    "
+                  >
+                    {/* Poster thumbnail */}
+                    <div className="w-9 h-[54px] flex-shrink-0 overflow-hidden rounded bg-gray-800">
+                      {movie.poster_path ? (
+                        <img
+                          src={movie.poster_path}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <FilmIcon />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Title + year */}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white group-hover:text-indigo-200 transition-colors">
+                        {movie.title}
+                      </p>
+                      {movie.year && (
+                        <p className="text-xs text-gray-500 mt-0.5">{movie.year}</p>
+                      )}
+                    </div>
+
+                    {/* Library status badge (shown once DB is checked on hover) */}
+                    {inLibrary && (
+                      <StatusBadge status={cachedStatus} size="sm" />
+                    )}
+
+                    {/* "In library" dot while hover-check is pending */}
+                    {!cachedStatus && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
+          {/* Footer attribution */}
+          {results.length > 0 && (
+            <div className="border-t border-gray-800 px-3 py-1.5 text-right">
+              <span className="text-[10px] text-gray-600">Powered by TMDB</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
