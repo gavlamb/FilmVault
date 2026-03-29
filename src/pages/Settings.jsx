@@ -1,4 +1,9 @@
 import { useState, useEffect } from 'react'
+import {
+  getSetting, setSetting, getAllMovies, getMoviesByStatus,
+  updateMovie, addMovie, updateMovieTmdbData,
+  showSaveDialog, writeFile,
+} from '../utils/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -129,9 +134,9 @@ function ApiKeysSection() {
 
   useEffect(() => {
     Promise.all([
-      window.electronAPI.getSetting('tmdb_api_key'),
-      window.electronAPI.getSetting('ebay_app_id'),
-      window.electronAPI.getSetting('ebay_cert_id'),
+      getSetting('tmdb_api_key'),
+      getSetting('ebay_app_id'),
+      getSetting('ebay_cert_id'),
     ]).then(([t, a, c]) => {
       setTmdb(t || '')
       setEbayApp(a || '')
@@ -140,7 +145,7 @@ function ApiKeysSection() {
   }, [])
 
   async function save(key, value, flashSetter) {
-    await window.electronAPI.setSetting(key, value)
+    await setSetting(key, value)
     flashSetter(true)
     setTimeout(() => flashSetter(false), 2000)
   }
@@ -218,8 +223,8 @@ function JellyfinSection() {
 
   useEffect(() => {
     Promise.all([
-      window.electronAPI.getSetting('jellyfin_url'),
-      window.electronAPI.getSetting('jellyfin_api_key'),
+      getSetting('jellyfin_url'),
+      getSetting('jellyfin_api_key'),
     ]).then(([u, k]) => {
       setUrl(u || '')
       setApiKey(k || '')
@@ -228,8 +233,8 @@ function JellyfinSection() {
 
   async function handleSave() {
     await Promise.all([
-      window.electronAPI.setSetting('jellyfin_url', url),
-      window.electronAPI.setSetting('jellyfin_api_key', apiKey),
+      setSetting('jellyfin_url', url),
+      setSetting('jellyfin_api_key', apiKey),
     ])
     setCredSaved(true)
     setTimeout(() => setCredSaved(false), 2000)
@@ -268,7 +273,7 @@ function JellyfinSection() {
 
     try {
       // Build lookup maps from existing library
-      const library = await window.electronAPI.getAllMovies()
+      const library = await getAllMovies()
       const byJellyfinId = new Map(
         library.filter((m) => m.jellyfin_id).map((m) => [m.jellyfin_id, m])
       )
@@ -301,7 +306,7 @@ function JellyfinSection() {
           alreadyExisted++
         } else if (byTitleYear.has(titleKey)) {
           const existing = byTitleYear.get(titleKey)
-          await window.electronAPI.updateMovie(existing.tmdb_id, {
+          await updateMovie(existing.tmdb_id, {
             ...existing,
             jellyfin_id: item.Id,
           })
@@ -309,7 +314,7 @@ function JellyfinSection() {
         } else {
           const syntheticId = jellyfinSyntheticId(item.Id)
           try {
-            await window.electronAPI.addMovie({
+            await addMovie({
               tmdb_id:       syntheticId,
               title:         item.Name,
               year:          item.ProductionYear || null,
@@ -342,7 +347,7 @@ function JellyfinSection() {
 
       // ── Phase 2: fetch TMDB posters for newly added movies ──────────────
       if (newlyAdded.length > 0) {
-        const tmdbKey = await window.electronAPI.getSetting('tmdb_api_key')
+        const tmdbKey = await getSetting('tmdb_api_key')
         if (tmdbKey) {
           let postersFetched = 0
           for (let i = 0; i < newlyAdded.length; i++) {
@@ -353,7 +358,7 @@ function JellyfinSection() {
             if (i > 0) await new Promise((r) => setTimeout(r, 250)) // ~4 req/s
             const result = await fetchTmdbPoster(newlyAdded[i], tmdbKey)
             if (result) {
-              await window.electronAPI.updateMovieTmdbData(
+              await updateMovieTmdbData(
                 newlyAdded[i].tmdb_id, result.tmdb_id, result.poster_path
               )
               postersFetched++
@@ -373,13 +378,13 @@ function JellyfinSection() {
   }
 
   async function handleFixPosters() {
-    const tmdbKey = await window.electronAPI.getSetting('tmdb_api_key')
+    const tmdbKey = await getSetting('tmdb_api_key')
     if (!tmdbKey) {
       setPosterStatus({ type: 'error', msg: 'TMDB API key not set — save it in the API Keys section first.' })
       return
     }
 
-    const allMovies = await window.electronAPI.getAllMovies()
+    const allMovies = await getAllMovies()
     const missing   = allMovies.filter((m) => !m.poster_path)
 
     if (missing.length === 0) {
@@ -395,7 +400,7 @@ function JellyfinSection() {
       if (i > 0) await new Promise((r) => setTimeout(r, 250))
       const result = await fetchTmdbPoster(missing[i], tmdbKey)
       if (result) {
-        await window.electronAPI.updateMovieTmdbData(missing[i].tmdb_id, result.tmdb_id, result.poster_path)
+        await updateMovieTmdbData(missing[i].tmdb_id, result.tmdb_id, result.poster_path)
         fixed++
       }
     }
@@ -492,35 +497,35 @@ function ExportSection() {
   }
 
   async function exportLibrary() {
-    const movies = await window.electronAPI.getAllMovies()
+    const movies = await getAllMovies()
     const csv    = toCsv(movies)
     const json   = JSON.stringify(movies, null, 2)
 
-    const { canceled, filePath } = await window.electronAPI.showSaveDialog({
+    const { canceled, filePath } = await showSaveDialog({
       title:       'Export Full Library',
       defaultPath: 'filmvault-library.csv',
       filters:     [{ name: 'CSV', extensions: ['csv'] }],
     })
     if (canceled || !filePath) return
 
-    await window.electronAPI.writeFile(filePath, csv)
+    await writeFile(filePath, csv)
     const jsonPath = filePath.replace(/\.csv$/i, '') + '.json'
-    await window.electronAPI.writeFile(jsonPath, json)
+    await writeFile(jsonPath, json)
     flash('library', 'success', `Saved CSV + JSON alongside it`)
   }
 
   async function exportList(statusFilter, defaultName, flashKey) {
-    const movies = await window.electronAPI.getMoviesByStatus(statusFilter)
+    const movies = await getMoviesByStatus(statusFilter)
     const csv    = toCsv(movies)
 
-    const { canceled, filePath } = await window.electronAPI.showSaveDialog({
+    const { canceled, filePath } = await showSaveDialog({
       title:       `Export ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} List`,
       defaultPath: defaultName,
       filters:     [{ name: 'CSV', extensions: ['csv'] }],
     })
     if (canceled || !filePath) return
 
-    await window.electronAPI.writeFile(filePath, csv)
+    await writeFile(filePath, csv)
     flash(flashKey, 'success', `Exported ${movies.length} movies`)
   }
 

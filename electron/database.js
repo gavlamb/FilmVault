@@ -1,6 +1,13 @@
 const Database = require('better-sqlite3')
 const path = require('path')
-const { app } = require('electron')
+
+// Works in both Electron and plain Node (server mode).
+// Server mode sets FILMVAULT_DATA before requiring this module.
+function getDataDir() {
+  if (process.env.FILMVAULT_DATA) return process.env.FILMVAULT_DATA
+  const { app } = require('electron')
+  return app.getPath('userData')
+}
 
 let db
 
@@ -18,7 +25,7 @@ const DEFAULT_SETTINGS = {
 
 function getDb() {
   if (!db) {
-    const dbPath = path.join(app.getPath('userData'), 'filmvault.db')
+    const dbPath = path.join(getDataDir(), 'filmvault.db')
     db = new Database(dbPath)
     db.pragma('journal_mode = WAL')
     db.pragma('foreign_keys = ON')

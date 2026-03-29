@@ -2,18 +2,29 @@
 
 ## Project
 Personal movie collection manager. React + Vite + Electron + Tailwind + SQLite.
+Dual-mode: Electron desktop app (Windows) or Express HTTP server (Ubuntu mini PC).
 
 ## Stack
 - Frontend: React 18 + Vite
-- Desktop: Electron
+- Desktop: Electron (Windows)
+- Server: Express 4 (Ubuntu / any Node host)
 - Database: SQLite (better-sqlite3)
 - Styling: Tailwind CSS
 - Movie API: TMDB
 - Phase 2: eBay UK Browse API
-- Mobile: Browser via Tailscale
+- Mobile: Browser via Tailscale → Express server
+
+## Dual-Mode Architecture
+- **Electron mode**: `npm run dev` / `npm run build`. Components call `window.electronAPI` via IPC.
+- **Server mode**: `npm run build:server` builds the React app then starts Express on port 3000.
+  Set `FILMVAULT_DATA` env var to choose where the DB and poster cache live (default `~/.filmvault`).
+- **`src/utils/api.js`**: detects mode via `window.electronAPI` presence; exports identical function
+  names regardless of mode — no component ever calls `window.electronAPI` directly.
+- **`electron/database.js`**: uses `FILMVAULT_DATA` env if set, otherwise `app.getPath('userData')`,
+  so the same module is shared by both Electron and the Express server.
 
 ## Current Status
-Sessions 1–7 complete. Full app working: search, library grid, add/edit modal, Settings (TMDB + Jellyfin + export), offline poster caching, collections in search results with CollectionModal.
+Sessions 1–8 complete. Full app working in both Electron and server modes.
 
 ## Build Order
 1. ~~SQLite database schema~~ ✓

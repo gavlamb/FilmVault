@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import StatusBadge from './StatusBadge'
 import { getPosterUrl } from '../utils/posterUrl'
+import { cachePoster, updateMoviePoster } from '../utils/api'
 
 const FORMAT_SHORT = {
   '4k_bluray': '4K',
@@ -53,11 +54,12 @@ function MovieCard({ movie, onClick }) {
     if (!movie.poster_path) return
     // Only cache remote TMDB URLs — filmvault:// means already cached
     if (!movie.poster_path.startsWith('http')) return
-    window.electronAPI.cachePoster(movie.poster_path, movie.tmdb_id)
+    cachePoster(movie.poster_path, movie.tmdb_id)
       .then((filename) => {
+        if (!filename) return  // server mode no-ops return null
         const src = `filmvault://posters/${filename}`
         setPosterSrc(src)
-        window.electronAPI.updateMoviePoster(movie.tmdb_id, src)
+        updateMoviePoster(movie.tmdb_id, src)
       })
       .catch(() => { /* keep remote URL on failure */ })
   }, [movie.tmdb_id, movie.poster_path])

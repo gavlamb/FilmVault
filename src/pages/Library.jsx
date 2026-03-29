@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import MovieGrid from '../components/MovieGrid'
+import { getAllMovies } from '../utils/api'
 
 const FILTERS = [
   { value: 'all',       label: 'All' },
@@ -16,7 +17,7 @@ export default function Library({ onMovieClick, refreshKey }) {
   const [activeFilter,  setActiveFilter]  = useState('all')
 
   useEffect(() => {
-    window.electronAPI.getAllMovies().then(setMovies)
+    getAllMovies().then(setMovies)
   }, [refreshKey])
 
   // Count per status

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import StatusBadge from './StatusBadge'
 import { getPosterUrl } from '../utils/posterUrl'
+import { getMovieById, addMovie, updateMovie, deleteMovie } from '../utils/api'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ function AddSection({ movie, onAdded }) {
     try {
       const status = upgradeWanted ? 'upgrade' : selectedFormat
       const format = upgradeWanted ? ownFormat : selectedFormat
-      await window.electronAPI.addMovie({
+      await addMovie({
         tmdb_id:       movie.tmdb_id,
         title:         movie.title,
         year:          movie.year          ?? null,
@@ -230,7 +231,7 @@ function EditSection({ movie, libraryEntry, onSaved, onClose }) {
     setSaving(true)
     try {
       const format = editStatus === 'upgrade' ? editFormat : editStatus
-      await window.electronAPI.updateMovie(movie.tmdb_id, {
+      await updateMovie(movie.tmdb_id, {
         ...libraryEntry,
         status: editStatus,
         format,
@@ -247,7 +248,7 @@ function EditSection({ movie, libraryEntry, onSaved, onClose }) {
     if (!confirmRemove) { setConfirmRemove(true); return }
     setSaving(true)
     try {
-      await window.electronAPI.deleteMovie(movie.tmdb_id)
+      await deleteMovie(movie.tmdb_id)
       onSaved()
       onClose()
     } finally {
@@ -343,7 +344,7 @@ export default function MovieModal({ movie, onClose, onSaved }) {
   useEffect(() => {
     if (!movie) return
     setLibraryEntry(undefined)
-    window.electronAPI.getMovieById(movie.tmdb_id).then((entry) => {
+    getMovieById(movie.tmdb_id).then((entry) => {
       setLibraryEntry(entry || null)
     })
   }, [movie?.tmdb_id])

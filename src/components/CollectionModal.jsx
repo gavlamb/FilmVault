@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getCollectionDetails } from '../utils/tmdb'
 import StatusBadge from './StatusBadge'
 import { getPosterUrl } from '../utils/posterUrl'
+import { getSetting, getMovieById, addMovie } from '../utils/api'
 
 const FORMAT_OPTS = [
   { value: 'wanted',    label: 'Wanted'     },
@@ -42,7 +43,7 @@ export default function CollectionModal({ collection, onClose, onMovieSelect, on
     setLoading(true)
     setError(null)
 
-    window.electronAPI.getSetting('tmdb_api_key').then(async (apiKey) => {
+    getSetting('tmdb_api_key').then(async (apiKey) => {
       if (!apiKey) {
         setError('Add your TMDB API key in Settings to view collection details.')
         setLoading(false)
@@ -55,7 +56,7 @@ export default function CollectionModal({ collection, onClose, onMovieSelect, on
         // Check library status for each film
         const statuses = {}
         await Promise.all(data.parts.map(async (film) => {
-          const entry = await window.electronAPI.getMovieById(film.tmdb_id)
+          const entry = await getMovieById(film.tmdb_id)
           statuses[film.tmdb_id] = entry ? entry.status : '__none__'
         }))
         setMovieStatuses(statuses)
@@ -82,7 +83,7 @@ export default function CollectionModal({ collection, onClose, onMovieSelect, on
     try {
       const notOwned = details.parts.filter((f) => movieStatuses[f.tmdb_id] === '__none__')
       for (const film of notOwned) {
-        await window.electronAPI.addMovie({
+        await addMovie({
           tmdb_id:       film.tmdb_id,
           title:         film.title,
           year:          film.year          ?? null,

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { searchMovies, searchCollections } from '../utils/tmdb'
 import StatusBadge from './StatusBadge'
+import { getSetting, getMovieById } from '../utils/api'
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value)
@@ -45,7 +46,7 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
 
   // Load API key once on mount
   useEffect(() => {
-    window.electronAPI.getSetting('tmdb_api_key').then((key) => {
+    getSetting('tmdb_api_key').then((key) => {
       setApiKey(key || '')
     })
   }, [])
@@ -127,7 +128,7 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
   // Fetch DB status on hover — cached so it only calls once per tmdb_id per session
   async function handleHover(tmdbId) {
     if (tmdbId in statusCache) return
-    const movie = await window.electronAPI.getMovieById(tmdbId)
+    const movie = await getMovieById(tmdbId)
     setStatusCache((prev) => ({
       ...prev,
       [tmdbId]: movie ? movie.status : '__none__',

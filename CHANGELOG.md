@@ -1,5 +1,16 @@
 # Changelog
 
+## [Session 8] - 2026-03-29
+
+### Added
+- `server/index.js` — Express 4 server on port 3000; serves built React app from `dist/`; REST API mirroring all Electron IPC handlers: movies CRUD, collections, settings, poster cache (`GET`/`POST /api/posters/:tmdbId`), Jellyfin sync stub
+- `src/utils/api.js` — unified API layer; detects Electron vs browser via `window.electronAPI`; exports `getAllMovies`, `getMovieById`, `addMovie`, `updateMovie`, `deleteMovie`, `getMoviesByStatus`, `updateMovieTmdbData`, `cachePoster`, `updateMoviePoster`, `getAllCollections`, `addCollection`, `getSetting`, `setSetting`, `getAllSettings`, `showSaveDialog`, `writeFile`; browser-mode `writeFile` triggers a Blob download; browser-mode `cachePoster` posts to server for server-side download
+- `electron/database.js` — refactored path detection: uses `FILMVAULT_DATA` env var when set, otherwise falls back to `app.getPath('userData')` via lazy `require('electron')`; allows the same module to be used by both Electron and the Express server without modification
+- `package.json` — added `express ^4` dependency; added `"server"` and `"build:server"` scripts
+
+### Changed
+- All components (`Library`, `Settings`, `MovieModal`, `MovieGrid`, `SearchBar`, `CollectionModal`) now import from `src/utils/api.js` — zero direct `window.electronAPI` calls remain in `src/`
+
 ## [Session 7] - 2026-03-29
 
 ### Added
