@@ -40,11 +40,14 @@ function MovieCard({ movie, onClick }) {
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <svg className="h-8 w-8 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gray-800/80 px-2">
+            <svg className="h-7 w-7 shrink-0 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
                 d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
             </svg>
+            <p className="line-clamp-3 text-center text-[10px] leading-tight text-gray-500">
+              {movie.title}
+            </p>
           </div>
         )}
 

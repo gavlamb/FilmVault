@@ -194,6 +194,34 @@ function getAllSettings() {
   return Object.fromEntries(rows.map((r) => [r.key, r.value]))
 }
 
+// Replaces a synthetic (negative) tmdb_id with the real TMDB ID and sets
+// poster_path.  Three cases:
+//   • oldId === newId         → just update poster_path in place
+//   • newId already in DB    → update poster on real entry, delete synthetic
+//   • newId not in DB        → UPDATE PK from old to new, set poster_path
+function updateMovieTmdbData(oldTmdbId, newTmdbId, posterPath) {
+  const db = getDb()
+
+  if (oldTmdbId === newTmdbId) {
+    db.prepare('UPDATE movies SET poster_path = ? WHERE tmdb_id = ?')
+      .run(posterPath, oldTmdbId)
+    return getMovieById(oldTmdbId)
+  }
+
+  if (getMovieById(newTmdbId)) {
+    // Real entry already exists — keep it, update its poster, drop the synthetic
+    db.prepare('UPDATE movies SET poster_path = ? WHERE tmdb_id = ?')
+      .run(posterPath, newTmdbId)
+    deleteMovie(oldTmdbId)
+    return getMovieById(newTmdbId)
+  }
+
+  // Safe to update the PRIMARY KEY (no conflict)
+  db.prepare('UPDATE movies SET tmdb_id = ?, poster_path = ? WHERE tmdb_id = ?')
+    .run(newTmdbId, posterPath, oldTmdbId)
+  return getMovieById(newTmdbId)
+}
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -205,6 +233,7 @@ module.exports = {
   deleteMovie,
   searchMovies,
   getMoviesByStatus,
+  updateMovieTmdbData,
   // Collections
   getAllCollections,
   addCollection,

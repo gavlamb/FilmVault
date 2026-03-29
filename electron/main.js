@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
-const db = require('./database')
+const fs   = require('fs')
+const db   = require('./database')
 
 const isDev = !app.isPackaged
 
@@ -35,7 +36,8 @@ ipcMain.handle('db:addMovie',           (_e, movie)     => db.addMovie(movie))
 ipcMain.handle('db:updateMovie',        (_e, id, movie) => db.updateMovie(id, movie))
 ipcMain.handle('db:deleteMovie',        (_e, tmdbId)    => db.deleteMovie(tmdbId))
 ipcMain.handle('db:searchMovies',       (_e, query)     => db.searchMovies(query))
-ipcMain.handle('db:getMoviesByStatus',  (_e, status)    => db.getMoviesByStatus(status))
+ipcMain.handle('db:getMoviesByStatus',   (_e, status)           => db.getMoviesByStatus(status))
+ipcMain.handle('db:updateMovieTmdbData', (_e, oldId, newId, poster) => db.updateMovieTmdbData(oldId, newId, poster))
 
 // ─── IPC: Collections ─────────────────────────────────────────────────────────
 ipcMain.handle('db:getAllCollections',  ()               => db.getAllCollections())
@@ -49,6 +51,16 @@ ipcMain.handle('db:getAllSettings', ()               => db.getAllSettings())
 
 // ─── IPC: App ─────────────────────────────────────────────────────────────────
 ipcMain.handle('app:getVersion', () => app.getVersion())
+
+// ─── IPC: Dialog + FS ─────────────────────────────────────────────────────────
+ipcMain.handle('dialog:showSaveDialog', (event, options) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  return dialog.showSaveDialog(win, options)
+})
+
+ipcMain.handle('fs:writeFile', (_e, filePath, content) => {
+  fs.writeFileSync(filePath, content, 'utf8')
+})
 
 app.whenReady().then(() => {
   createWindow()

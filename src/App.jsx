@@ -2,31 +2,39 @@ import { useState } from 'react'
 import SearchBar from './components/SearchBar'
 import MovieModal from './components/MovieModal'
 import Library from './pages/Library'
+import Settings from './pages/Settings'
+
+function GearIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )
+}
 
 function App() {
-  const [devKey,        setDevKey]        = useState('')
-  const [devSaved,      setDevSaved]      = useState(false)
-  const [selectedMovie, setSelectedMovie] = useState(null)
+  const [page,           setPage]           = useState('library') // 'library' | 'settings'
+  const [selectedMovie,  setSelectedMovie]  = useState(null)
   const [libraryVersion, setLibraryVersion] = useState(0)
+  // Bump this when leaving Settings so SearchBar remounts and reloads the API key
+  const [searchKey,      setSearchKey]      = useState(0)
 
-  function handleMovieSelect(movie) {
-    setSelectedMovie(movie)
-  }
+  function handleMovieSelect(movie) { setSelectedMovie(movie) }
+  function handleModalClose()       { setSelectedMovie(null) }
+  function handleSaved()            { setLibraryVersion((v) => v + 1) }
 
-  function handleModalClose() {
-    setSelectedMovie(null)
-  }
-
-  function handleSaved() {
-    setLibraryVersion((v) => v + 1)
-  }
-
-  async function saveDevKey() {
-    if (!devKey.trim()) return
-    await window.electronAPI.setSetting('tmdb_api_key', devKey.trim())
-    setDevKey('')
-    setDevSaved(true)
-    setTimeout(() => setDevSaved(false), 2000)
+  function toggleSettings() {
+    setPage((p) => {
+      if (p === 'settings') {
+        // Leaving settings — remount SearchBar so it picks up any new API key
+        setSearchKey((k) => k + 1)
+        return 'library'
+      }
+      return 'settings'
+    })
   }
 
   return (
@@ -48,53 +56,39 @@ function App() {
           </div>
         </div>
 
-        {/* Search — takes remaining space */}
+        {/* Search — hidden on settings page */}
         <div className="flex flex-1 justify-center">
-          <SearchBar onMovieSelect={handleMovieSelect} />
+          {page === 'library' && (
+            <SearchBar key={searchKey} onMovieSelect={handleMovieSelect} />
+          )}
         </div>
 
-        {/* Right-side controls */}
-        <div className="flex flex-shrink-0 items-center justify-end gap-1">
-          {import.meta.env.DEV && (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="text"
-                value={devKey}
-                onChange={e => setDevKey(e.target.value)}
-                placeholder="Paste TMDB API key here"
-                className="w-48 rounded-md border border-yellow-700/50 bg-gray-900 px-2 py-1 text-[11px] text-gray-300 placeholder-gray-600 outline-none focus:border-yellow-500"
-              />
-              <button
-                onClick={saveDevKey}
-                className="rounded-md px-2 py-1 text-[11px] font-medium text-yellow-500 ring-1 ring-yellow-700 transition-colors hover:bg-yellow-900/30"
-              >
-                Save Key
-              </button>
-              {devSaved && (
-                <span className="text-[11px] font-medium text-green-400">Saved!</span>
-              )}
-            </div>
-          )}
+        {/* Settings icon */}
+        <div className="flex flex-shrink-0 items-center">
           <button
-            title="Settings"
-            className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
+            onClick={toggleSettings}
+            title={page === 'settings' ? 'Back to Library' : 'Settings'}
+            className={`rounded-lg p-2 transition-colors ${
+              page === 'settings'
+                ? 'bg-gray-800 text-indigo-400'
+                : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
+            }`}
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            <GearIcon className="h-4 w-4" />
           </button>
         </div>
       </header>
 
       {/* ── Main ────────────────────────────────────────────────────────── */}
       <main className="flex-1 p-6">
-        <Library
-          onMovieClick={handleMovieSelect}
-          refreshKey={libraryVersion}
-        />
+        {page === 'settings' ? (
+          <Settings />
+        ) : (
+          <Library
+            onMovieClick={handleMovieSelect}
+            refreshKey={libraryVersion}
+          />
+        )}
       </main>
 
       {/* ── Modal ───────────────────────────────────────────────────────── */}

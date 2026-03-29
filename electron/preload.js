@@ -8,7 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateMovie:      (tmdbId, movie) => ipcRenderer.invoke('db:updateMovie', tmdbId, movie),
   deleteMovie:      (tmdbId)        => ipcRenderer.invoke('db:deleteMovie', tmdbId),
   searchMovies:     (query)         => ipcRenderer.invoke('db:searchMovies', query),
-  getMoviesByStatus:(status)        => ipcRenderer.invoke('db:getMoviesByStatus', status),
+  getMoviesByStatus:   (status)               => ipcRenderer.invoke('db:getMoviesByStatus', status),
+  updateMovieTmdbData: (oldId, newId, poster) => ipcRenderer.invoke('db:updateMovieTmdbData', oldId, newId, poster),
 
   // Collections
   getAllCollections:  ()                   => ipcRenderer.invoke('db:getAllCollections'),
@@ -22,4 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
+
+  // Dialog + FS (for exports)
+  showSaveDialog: (options)          => ipcRenderer.invoke('dialog:showSaveDialog', options),
+  writeFile:      (filePath, content) => ipcRenderer.invoke('fs:writeFile', filePath, content),
 })
