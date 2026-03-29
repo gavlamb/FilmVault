@@ -1,12 +1,18 @@
 export function getPosterUrl(posterPath) {
   if (!posterPath) return null
-  // Already a filmvault:// URL
-  if (posterPath.startsWith('filmvault://')) return posterPath
-  // Stale file:// path or bare filename — convert to filmvault:// protocol
-  if (posterPath.startsWith('file://') || posterPath.includes('posters/') || posterPath.match(/^\d+\.jpg$/)) {
-    const filename = posterPath.split('/').pop().split('\\').pop()
+
+  // Already a TMDB URL — return as-is
+  if (posterPath.startsWith('https://')) return posterPath
+
+  // Get the filename (tmdb_id.jpg)
+  const filename = posterPath.split('/').pop().split('\\').pop()
+  const tmdbId   = filename.replace('.jpg', '')
+
+  // In Electron — use filmvault:// protocol
+  if (typeof window !== 'undefined' && window.electronAPI) {
     return `filmvault://posters/${filename}`
   }
-  // TMDB URL — return as-is
-  return posterPath
+
+  // In browser — use Express API route
+  return `/api/posters/${tmdbId}`
 }

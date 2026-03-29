@@ -57,7 +57,7 @@ function MovieCard({ movie, onClick }) {
     cachePoster(movie.poster_path, movie.tmdb_id)
       .then((filename) => {
         if (!filename) return  // server mode no-ops return null
-        const src = `filmvault://posters/${filename}`
+        const src = getPosterUrl(filename)
         setPosterSrc(src)
         updateMoviePoster(movie.tmdb_id, src)
       })
