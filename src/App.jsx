@@ -22,7 +22,10 @@ function App() {
   // Bump this when leaving Settings so SearchBar remounts and reloads the API key
   const [searchKey,      setSearchKey]      = useState(0)
 
-  function handleMovieSelect(movie) { setSelectedMovie(movie) }
+  function handleMovieSelect(movie) {
+    console.log('[App] handleMovieSelect received:', movie?.title, movie?.tmdb_id)
+    setSelectedMovie(movie)
+  }
   function handleModalClose()       { setSelectedMovie(null) }
   function handleSaved()            { setLibraryVersion((v) => v + 1) }
 

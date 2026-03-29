@@ -39,6 +39,7 @@ export default function SearchBar({ onMovieSelect }) {
 
   const containerRef = useRef(null)
   const inputRef     = useRef(null)
+  const dropdownRef  = useRef(null)   // portal dropdown container
   const debouncedQuery = useDebounce(query, 400)
 
   // Load API key once on mount
@@ -105,12 +106,12 @@ export default function SearchBar({ onMovieSelect }) {
     }
   }, [isOpen])
 
-  // Close on click outside
+  // Close on click outside — must exclude the portal dropdown (it lives outside containerRef)
   useEffect(() => {
     function onMouseDown(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false)
-      }
+      const inContainer = containerRef.current?.contains(e.target)
+      const inDropdown  = dropdownRef.current?.contains(e.target)
+      if (!inContainer && !inDropdown) setIsOpen(false)
     }
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
@@ -127,6 +128,7 @@ export default function SearchBar({ onMovieSelect }) {
   }
 
   function handleSelect(movie) {
+    console.log('[SearchBar] onMovieSelect called:', movie.title, movie.tmdb_id)
     setIsOpen(false)
     setQuery('')
     setResults([])
@@ -147,6 +149,7 @@ export default function SearchBar({ onMovieSelect }) {
 
       {/* Dropdown — portalled to document.body, positioned via getBoundingClientRect */}
       <div
+        ref={dropdownRef}
         style={{
           position: 'fixed',
           top:   dropdownRect.bottom + 6,
@@ -201,7 +204,7 @@ export default function SearchBar({ onMovieSelect }) {
                 <li
                   key={movie.tmdb_id}
                   onMouseEnter={() => handleHover(movie.tmdb_id)}
-                  onClick={() => handleSelect(movie)}
+                  onMouseDown={() => handleSelect(movie)}
                   className="
                     flex items-center gap-3 px-3 py-2.5
                     hover:bg-gray-800/70 cursor-pointer

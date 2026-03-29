@@ -1,5 +1,25 @@
 import StatusBadge from './StatusBadge'
 
+const FORMAT_SHORT = {
+  '4k_bluray': '4K',
+  bluray:      'Blu-ray',
+  dvd:         'DVD',
+  digital:     'Digital',
+}
+
+function UpgradeBadge({ format }) {
+  const from = FORMAT_SHORT[format] || 'Own'
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/40 bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-orange-400 whitespace-nowrap">
+      {from}
+      <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+      </svg>
+      4K
+    </span>
+  )
+}
+
 function EmptyState({ hasFilter }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -53,7 +73,10 @@ function MovieCard({ movie, onClick }) {
 
         {/* Status badge overlay */}
         <div className="absolute bottom-2 left-2">
-          <StatusBadge status={movie.status} size="sm" />
+          {movie.status === 'upgrade'
+            ? <UpgradeBadge format={movie.format} />
+            : <StatusBadge status={movie.status} size="sm" />
+          }
         </div>
       </div>
 
