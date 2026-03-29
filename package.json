@@ -4,7 +4,7 @@
   "description": "Personal movie collection manager",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "taskkill /F /IM electron.exe /T 2>nul & concurrently \"vite\" \"wait-on http://localhost:5174 && electron .\"",
+    "dev": "taskkill /F /IM electron.exe /T 2>nul & concurrently \"vite\" \"wait-on http://localhost:3745 && electron .\"",
     "build": "vite build && electron-builder",
     "build:vite": "vite build",
     "preview": "vite preview",
