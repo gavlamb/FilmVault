@@ -1,5 +1,17 @@
 # Changelog
 
+## [Session 7] - 2026-03-29
+
+### Added
+- `electron/main.js` — `cache-poster` IPC handler: downloads TMDB poster via Node `https`, saves to `userData/posters/{tmdb_id}.jpg`, returns local path; skips if already cached
+- `electron/database.js` — `updateMoviePoster(tmdbId, localPath)`: simple poster path update
+- `electron/preload.js` — `cachePoster(url, tmdbId)` and `updateMoviePoster(tmdbId, localPath)` exposed via contextBridge
+- `src/components/MovieGrid.jsx` — `MovieCard` caches remote TMDB poster URLs on first render via `cachePoster`; updates DB with `file://` path for offline use
+- `src/utils/tmdb.js` — `searchCollections(query, apiKey)` using `/search/collection`; `getCollectionDetails(collectionId, apiKey)` returning sorted parts with full film data
+- `src/components/SearchBar.jsx` — parallel `searchMovies` + `searchCollections`; collection results shown above movies with teal "Collection" badge; `onCollectionSelect` prop
+- `src/components/CollectionModal.jsx` — new modal showing all films in a collection with poster, year, library status badge; "Add All" with format selector (adds only films not already in library); individual film click opens MovieModal
+- `src/App.jsx` — `selectedCollection` state; `handleCollectionSelect` / `handleCollectionModalClose`; renders `<CollectionModal>`
+
 ## [Unreleased]
 
 ### Fixed

@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
-const path = require('path')
-const fs   = require('fs')
-const db   = require('./database')
+const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron')
+const path  = require('path')
+const fs    = require('fs')
+const https = require('https')
+const db    = require('./database')
 
 const isDev = !app.isPackaged
 
@@ -38,6 +39,7 @@ ipcMain.handle('db:deleteMovie',        (_e, tmdbId)    => db.deleteMovie(tmdbId
 ipcMain.handle('db:searchMovies',       (_e, query)     => db.searchMovies(query))
 ipcMain.handle('db:getMoviesByStatus',   (_e, status)           => db.getMoviesByStatus(status))
 ipcMain.handle('db:updateMovieTmdbData', (_e, oldId, newId, poster) => db.updateMovieTmdbData(oldId, newId, poster))
+ipcMain.handle('db:updateMoviePoster',   (_e, tmdbId, localPath)    => db.updateMoviePoster(tmdbId, localPath))
 
 // ─── IPC: Collections ─────────────────────────────────────────────────────────
 ipcMain.handle('db:getAllCollections',  ()               => db.getAllCollections())
@@ -48,6 +50,32 @@ ipcMain.handle('db:updateCollection',  (_e, id, col)    => db.updateCollection(i
 ipcMain.handle('db:getSetting',     (_e, key)        => db.getSetting(key))
 ipcMain.handle('db:setSetting',     (_e, key, value) => db.setSetting(key, value))
 ipcMain.handle('db:getAllSettings', ()               => db.getAllSettings())
+
+// ─── IPC: Poster cache ────────────────────────────────────────────────────────
+ipcMain.handle('cache-poster', async (_e, url, tmdbId) => {
+  const postersDir = path.join(app.getPath('userData'), 'posters')
+  if (!fs.existsSync(postersDir)) fs.mkdirSync(postersDir, { recursive: true })
+  const dest = path.join(postersDir, `${tmdbId}.jpg`)
+  const filename = `${tmdbId}.jpg`
+  // If already cached, return immediately
+  if (fs.existsSync(dest)) return filename
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest)
+    https.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        file.close()
+        fs.unlink(dest, () => {})
+        return reject(new Error(`HTTP ${res.statusCode}`))
+      }
+      res.pipe(file)
+      file.on('finish', () => { file.close(); resolve(filename) })
+    }).on('error', (err) => {
+      file.close()
+      fs.unlink(dest, () => {})
+      reject(err)
+    })
+  })
+})
 
 // ─── IPC: App ─────────────────────────────────────────────────────────────────
 ipcMain.handle('app:getVersion', () => app.getVersion())
@@ -63,6 +91,12 @@ ipcMain.handle('fs:writeFile', (_e, filePath, content) => {
 })
 
 app.whenReady().then(() => {
+  protocol.registerFileProtocol('filmvault', (request, callback) => {
+    const filePath = request.url.replace('filmvault://posters/', '')
+    const fullPath = path.join(app.getPath('userData'), 'posters', filePath)
+    callback({ path: fullPath })
+  })
+
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

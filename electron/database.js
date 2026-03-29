@@ -141,6 +141,12 @@ function getMoviesByStatus(status) {
     .all(status)
 }
 
+function updateMoviePoster(tmdbId, localPath) {
+  getDb()
+    .prepare('UPDATE movies SET poster_path = ? WHERE tmdb_id = ?')
+    .run(localPath, tmdbId)
+}
+
 // ─── Collections ──────────────────────────────────────────────────────────────
 
 function getAllCollections() {
@@ -234,6 +240,7 @@ module.exports = {
   searchMovies,
   getMoviesByStatus,
   updateMovieTmdbData,
+  updateMoviePoster,
   // Collections
   getAllCollections,
   addCollection,

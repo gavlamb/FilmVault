@@ -76,6 +76,44 @@ export async function searchMovies(query, apiKey) {
   return merged.slice(0, 8)
 }
 
+export async function searchCollections(query, apiKey) {
+  if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
+  if (!query.trim())              return []
+
+  const url  = `${TMDB_BASE}/search/collection?query=${encodeURIComponent(query.trim())}&language=en-US`
+  const data = await apiFetch(url, apiKey)
+  return (data.results || []).slice(0, 3).map((col) => ({
+    tmdb_collection_id: col.id,
+    name:               col.name,
+    poster_path:        posterUrl(col.poster_path),
+    parts:              col.parts || [],   // TMDB doesn't include parts in search results
+    part_count:         (col.parts || []).length,
+  }))
+}
+
+export async function getCollectionDetails(collectionId, apiKey) {
+  if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
+
+  const url  = `${TMDB_BASE}/collection/${collectionId}?language=en-US`
+  const data = await apiFetch(url, apiKey)
+  return {
+    tmdb_collection_id: data.id,
+    name:               data.name,
+    poster_path:        posterUrl(data.poster_path),
+    overview:           data.overview || '',
+    parts:              (data.parts || [])
+      .sort((a, b) => (a.release_date || '').localeCompare(b.release_date || ''))
+      .map((p) => ({
+        tmdb_id:     p.id,
+        title:       p.title,
+        year:        p.release_date ? parseInt(p.release_date.slice(0, 4), 10) : null,
+        poster_path: posterUrl(p.poster_path),
+        overview:    p.overview || '',
+        popularity:  p.popularity || 0,
+      })),
+  }
+}
+
 export async function getMovieDetails(tmdbId, apiKey) {
   if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
 

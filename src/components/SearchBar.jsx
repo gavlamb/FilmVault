@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { searchMovies } from '../utils/tmdb'
+import { searchMovies, searchCollections } from '../utils/tmdb'
 import StatusBadge from './StatusBadge'
 
 function useDebounce(value, delay) {
@@ -27,9 +27,10 @@ function FilmIcon() {
   )
 }
 
-export default function SearchBar({ onMovieSelect }) {
+export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
   const [query,         setQuery]         = useState('')
   const [results,       setResults]       = useState([])
+  const [collections,   setCollections]   = useState([])
   const [isLoading,     setIsLoading]     = useState(false)
   const [isOpen,        setIsOpen]        = useState(false)
   const [apiKey,        setApiKey]        = useState(null)   // null = not yet loaded
@@ -54,6 +55,7 @@ export default function SearchBar({ onMovieSelect }) {
     if (apiKey === null) return          // not loaded yet
     if (!debouncedQuery.trim()) {
       setResults([])
+      setCollections([])
       setIsOpen(false)
       setError(null)
       return
@@ -67,16 +69,21 @@ export default function SearchBar({ onMovieSelect }) {
     let cancelled = false
     setIsLoading(true)
 
-    searchMovies(debouncedQuery, apiKey)
-      .then((movies) => {
+    Promise.all([
+      searchMovies(debouncedQuery, apiKey),
+      searchCollections(debouncedQuery, apiKey),
+    ])
+      .then(([movies, cols]) => {
         if (cancelled) return
         setResults(movies)
+        setCollections(cols)
         setIsLoading(false)
       })
       .catch((err) => {
         if (cancelled) return
         setIsLoading(false)
         setResults([])
+        setCollections([])
         if (err.message === 'INVALID_API_KEY') {
           setError('Invalid TMDB API key. Check your Settings.')
         } else if (err.message === 'NO_API_KEY') {
@@ -132,8 +139,19 @@ export default function SearchBar({ onMovieSelect }) {
     setIsOpen(false)
     setQuery('')
     setResults([])
+    setCollections([])
     setStatusCache({})
     onMovieSelect(movie)
+    inputRef.current?.blur()
+  }
+
+  function handleCollectionSelect(col) {
+    setIsOpen(false)
+    setQuery('')
+    setResults([])
+    setCollections([])
+    setStatusCache({})
+    onCollectionSelect(col)
     inputRef.current?.blur()
   }
 
@@ -187,15 +205,58 @@ export default function SearchBar({ onMovieSelect }) {
         )}
 
         {/* No results */}
-        {apiKey && !isLoading && !error && results.length === 0 && debouncedQuery.trim() && (
+        {apiKey && !isLoading && !error && results.length === 0 && collections.length === 0 && debouncedQuery.trim() && (
           <div className="px-4 py-3.5 text-sm text-gray-500">
             No results for <span className="text-gray-300">"{debouncedQuery}"</span>
           </div>
         )}
 
         {/* Results list */}
-        {apiKey && !isLoading && !error && results.length > 0 && (
+        {apiKey && !isLoading && !error && (results.length > 0 || collections.length > 0) && (
           <ul className="max-h-[420px] overflow-y-auto divide-y divide-gray-800/60">
+            {/* Collection results */}
+            {collections.map((col) => (
+              <li
+                key={`col-${col.tmdb_collection_id}`}
+                onMouseDown={() => handleCollectionSelect(col)}
+                className="
+                  flex items-center gap-3 px-3 py-2.5
+                  hover:bg-gray-800/70 cursor-pointer
+                  transition-colors group
+                "
+              >
+                {/* Poster thumbnail */}
+                <div className="w-9 h-[54px] flex-shrink-0 overflow-hidden rounded bg-gray-800">
+                  {col.poster_path ? (
+                    <img
+                      src={col.poster_path}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <FilmIcon />
+                    </div>
+                  )}
+                </div>
+
+                {/* Name + film count */}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-white group-hover:text-teal-200 transition-colors">
+                    {col.name}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">Collection</p>
+                </div>
+
+                {/* Teal collection badge */}
+                <span className="inline-flex items-center rounded-full border border-teal-500/40 bg-teal-500/20 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-teal-400 whitespace-nowrap flex-shrink-0">
+                  Collection
+                </span>
+              </li>
+            ))}
+
+            {/* Movie results */}
             {results.map((movie) => {
               const cachedStatus = statusCache[movie.tmdb_id]
               const inLibrary    = cachedStatus && cachedStatus !== '__none__'
@@ -253,7 +314,7 @@ export default function SearchBar({ onMovieSelect }) {
         )}
 
         {/* Footer attribution */}
-        {results.length > 0 && (
+        {(results.length > 0 || collections.length > 0) && (
           <div className="border-t border-gray-800 px-3 py-1.5 text-right">
             <span className="text-[10px] text-gray-600">Powered by TMDB</span>
           </div>

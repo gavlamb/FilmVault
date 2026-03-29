@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import SearchBar from './components/SearchBar'
 import MovieModal from './components/MovieModal'
+import CollectionModal from './components/CollectionModal'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
 
@@ -16,18 +17,25 @@ function GearIcon({ className }) {
 }
 
 function App() {
-  const [page,           setPage]           = useState('library') // 'library' | 'settings'
-  const [selectedMovie,  setSelectedMovie]  = useState(null)
-  const [libraryVersion, setLibraryVersion] = useState(0)
+  const [page,               setPage]               = useState('library') // 'library' | 'settings'
+  const [selectedMovie,      setSelectedMovie]      = useState(null)
+  const [selectedCollection, setSelectedCollection] = useState(null)
+  const [libraryVersion,     setLibraryVersion]     = useState(0)
   // Bump this when leaving Settings so SearchBar remounts and reloads the API key
-  const [searchKey,      setSearchKey]      = useState(0)
+  const [searchKey,          setSearchKey]          = useState(0)
 
   function handleMovieSelect(movie) {
     console.log('[App] handleMovieSelect received:', movie?.title, movie?.tmdb_id)
+    setSelectedCollection(null)
     setSelectedMovie(movie)
   }
-  function handleModalClose()       { setSelectedMovie(null) }
-  function handleSaved()            { setLibraryVersion((v) => v + 1) }
+  function handleCollectionSelect(col) {
+    setSelectedMovie(null)
+    setSelectedCollection(col)
+  }
+  function handleModalClose()           { setSelectedMovie(null) }
+  function handleCollectionModalClose() { setSelectedCollection(null) }
+  function handleSaved()                { setLibraryVersion((v) => v + 1) }
 
   function toggleSettings() {
     setPage((p) => {
@@ -62,7 +70,11 @@ function App() {
         {/* Search — hidden on settings page */}
         <div className="flex flex-1 justify-center">
           {page === 'library' && (
-            <SearchBar key={searchKey} onMovieSelect={handleMovieSelect} />
+            <SearchBar
+              key={searchKey}
+              onMovieSelect={handleMovieSelect}
+              onCollectionSelect={handleCollectionSelect}
+            />
           )}
         </div>
 
@@ -94,11 +106,21 @@ function App() {
         )}
       </main>
 
-      {/* ── Modal ───────────────────────────────────────────────────────── */}
+      {/* ── Movie Modal ─────────────────────────────────────────────────── */}
       {selectedMovie && (
         <MovieModal
           movie={selectedMovie}
           onClose={handleModalClose}
+          onSaved={handleSaved}
+        />
+      )}
+
+      {/* ── Collection Modal ─────────────────────────────────────────────── */}
+      {selectedCollection && (
+        <CollectionModal
+          collection={selectedCollection}
+          onClose={handleCollectionModalClose}
+          onMovieSelect={handleMovieSelect}
           onSaved={handleSaved}
         />
       )}

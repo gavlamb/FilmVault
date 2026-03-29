@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import StatusBadge from './StatusBadge'
+import { getPosterUrl } from '../utils/posterUrl'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -391,7 +392,7 @@ export default function MovieModal({ movie, onClose, onSaved }) {
             <div className="aspect-[2/3] overflow-hidden rounded-lg bg-gray-800">
               {display.poster_path ? (
                 <img
-                  src={display.poster_path}
+                  src={getPosterUrl(display.poster_path)}
                   alt={display.title}
                   className="h-full w-full object-cover"
                 />

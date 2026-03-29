@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   searchMovies:     (query)         => ipcRenderer.invoke('db:searchMovies', query),
   getMoviesByStatus:   (status)               => ipcRenderer.invoke('db:getMoviesByStatus', status),
   updateMovieTmdbData: (oldId, newId, poster) => ipcRenderer.invoke('db:updateMovieTmdbData', oldId, newId, poster),
+  updateMoviePoster:   (tmdbId, localPath)    => ipcRenderer.invoke('db:updateMoviePoster', tmdbId, localPath),
 
   // Collections
   getAllCollections:  ()                   => ipcRenderer.invoke('db:getAllCollections'),
@@ -23,6 +24,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // App
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
+
+  // Poster cache
+  cachePoster: (url, tmdbId) => ipcRenderer.invoke('cache-poster', url, tmdbId),
 
   // Dialog + FS (for exports)
   showSaveDialog: (options)          => ipcRenderer.invoke('dialog:showSaveDialog', options),

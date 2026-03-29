@@ -13,17 +13,18 @@ Personal movie collection manager. React + Vite + Electron + Tailwind + SQLite.
 - Mobile: Browser via Tailscale
 
 ## Current Status
-TMDB search complete. SearchBar live in App.jsx with debounce, hover-status badges, and no-API-key handling.
+Sessions 1–7 complete. Full app working: search, library grid, add/edit modal, Settings (TMDB + Jellyfin + export), offline poster caching, collections in search results with CollectionModal.
 
 ## Build Order
 1. ~~SQLite database schema~~ ✓
 2. ~~TMDB search component~~ ✓
-2. TMDB search component
-3. Library grid + filter bar
-4. Add/edit movie modal
-5. Jellyfin sync
-6. Settings page + exports
-7. eBay integration (Phase 2)
+3. ~~Library grid + filter bar~~ ✓
+4. ~~Add/edit movie modal~~ ✓
+5. ~~Jellyfin sync~~ ✓
+6. ~~Settings page + exports~~ ✓
+7. ~~Offline poster caching~~ ✓
+8. ~~Collections in search~~ ✓
+9. eBay integration (Phase 2)
 
 ## Windows Process Management
 **NEVER use `kill`, `kill -9`, `pkill`, or any Unix process commands. This is Windows.**
