@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import StatusBadge from './StatusBadge'
 import { getPosterUrl } from '../utils/posterUrl'
-import { getMovieById, addMovie, updateMovie, deleteMovie } from '../utils/api'
+import { getMovieById, addMovie, updateMovie, deleteMovie, getSetting, updateMovieRating } from '../utils/api'
+import { getMovieDetails } from '../utils/tmdb'
+import { getIMDbRating } from '../utils/omdb'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -127,10 +129,25 @@ function AddSection({ movie, onAdded }) {
         overview:      movie.overview      ?? null,
       })
       setAdded(true)
+      // Fetch and store IMDb rating in background — don't block the UI
+      fetchAndStoreRating(movie.tmdb_id).catch(() => {})
       setTimeout(() => onAdded(), 900)
     } finally {
       setSaving(false)
     }
+  }
+
+  async function fetchAndStoreRating(tmdbId) {
+    const [tmdbKey, omdbKey] = await Promise.all([
+      getSetting('tmdb_api_key'),
+      getSetting('omdb_api_key'),
+    ])
+    if (!tmdbKey || !omdbKey) return
+    const details = await getMovieDetails(tmdbId, tmdbKey)
+    if (!details.imdb_id) return
+    const rating = await getIMDbRating(details.imdb_id, omdbKey)
+    if (!rating) return
+    await updateMovieRating(tmdbId, rating.imdbRating, rating.imdbVotes)
   }
 
   const showUpgradeToggle = selectedFormat && UPGRADE_ELIGIBLE.has(selectedFormat) && !upgradeWanted
@@ -415,9 +432,22 @@ export default function MovieModal({ movie, onClose, onSaved }) {
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div>
               <h2 className="text-lg font-bold leading-tight text-white">{display.title}</h2>
-              {display.year && (
-                <p className="mt-0.5 text-sm text-gray-400">{display.year}</p>
-              )}
+              <div className="mt-0.5 flex items-center gap-3">
+                {display.year && (
+                  <p className="text-sm text-gray-400">{display.year}</p>
+                )}
+                {display.omdb_rating && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5" style={{ backgroundColor: '#1a1a1a' }}>
+                      <span className="text-[11px] font-bold leading-none" style={{ color: '#F5C518' }}>IMDb</span>
+                      <span className="text-sm font-semibold leading-none text-white">{display.omdb_rating}</span>
+                    </span>
+                    {display.omdb_votes && (
+                      <span className="text-xs text-gray-500">({display.omdb_votes} votes)</span>
+                    )}
+                  </span>
+                )}
+              </div>
             </div>
 
             {display.overview && (

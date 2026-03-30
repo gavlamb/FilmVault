@@ -13,6 +13,7 @@ let db
 
 const DEFAULT_SETTINGS = {
   tmdb_api_key:          '',
+  omdb_api_key:          '',
   jellyfin_url:          '',
   jellyfin_api_key:      '',
   ebay_app_id:           '',
@@ -66,6 +67,10 @@ function initSchema() {
       value TEXT
     );
   `)
+
+  // Migrations — add columns introduced after initial schema (SQLite throws if already exists)
+  try { db.exec('ALTER TABLE movies ADD COLUMN omdb_rating TEXT') } catch {}
+  try { db.exec('ALTER TABLE movies ADD COLUMN omdb_votes  TEXT') } catch {}
 
   // Insert defaults only for missing keys (INSERT OR IGNORE)
   const insertDefault = db.prepare(
@@ -152,6 +157,12 @@ function updateMoviePoster(tmdbId, localPath) {
   getDb()
     .prepare('UPDATE movies SET poster_path = ? WHERE tmdb_id = ?')
     .run(localPath, tmdbId)
+}
+
+function updateMovieRating(tmdbId, imdbRating, imdbVotes) {
+  getDb()
+    .prepare('UPDATE movies SET omdb_rating = ?, omdb_votes = ? WHERE tmdb_id = ?')
+    .run(imdbRating ?? null, imdbVotes ?? null, tmdbId)
 }
 
 // ─── Collections ──────────────────────────────────────────────────────────────
@@ -248,6 +259,7 @@ module.exports = {
   getMoviesByStatus,
   updateMovieTmdbData,
   updateMoviePoster,
+  updateMovieRating,
   // Collections
   getAllCollections,
   addCollection,

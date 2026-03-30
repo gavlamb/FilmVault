@@ -22,9 +22,15 @@ Dual-mode: Electron desktop app (Windows) or Express HTTP server (Ubuntu mini PC
   names regardless of mode — no component ever calls `window.electronAPI` directly.
 - **`electron/database.js`**: uses `FILMVAULT_DATA` env if set, otherwise `app.getPath('userData')`,
   so the same module is shared by both Electron and the Express server.
+- **`src/utils/posterUrl.js`**: checks `window.electronAPI` at call time — returns `filmvault://posters/{file}`
+  in Electron, `/api/posters/{tmdbId}` in browser mode.
+
+## Deployment
+- **Ubuntu mini PC**: `192.168.0.74:3000` — Express server running as a systemd service.
+- **Windows dev**: Vite on port 3745, Electron loads `http://localhost:3745`.
 
 ## Current Status
-Sessions 1–8 complete. Full app working in both Electron and server modes.
+Sessions 1–9 complete. Full app working in both Electron and server modes.
 
 ## Build Order
 1. ~~SQLite database schema~~ ✓
@@ -35,7 +41,9 @@ Sessions 1–8 complete. Full app working in both Electron and server modes.
 6. ~~Settings page + exports~~ ✓
 7. ~~Offline poster caching~~ ✓
 8. ~~Collections in search~~ ✓
-9. eBay integration (Phase 2)
+9. ~~Express server + dual-mode api.js~~ ✓
+10. ~~Library live search filter + IMDb ratings via OMDB~~ ✓
+11. eBay integration (Phase 2)
 
 ## Windows Process Management
 **NEVER use `kill`, `kill -9`, `pkill`, or any Unix process commands. This is Windows.**
@@ -43,12 +51,12 @@ Sessions 1–8 complete. Full app working in both Electron and server modes.
 Always use:
 - Kill by PID: `cmd /c "taskkill /F /PID <pid>"`
 - Kill by name: `cmd /c "taskkill /F /IM electron.exe /T"`
-- Find port owner: `cmd /c "netstat -ano | findstr :5173"`
+- Find port owner: `cmd /c "netstat -ano | findstr :3745"`
 
-To restart the dev server cleanly (kill Electron + free port 5173, then start):
+To restart the dev server cleanly (kill Electron + free port 3745, then start):
 ```
 cmd /c "taskkill /F /IM electron.exe /T 2>nul & taskkill /F /IM FilmVault.exe /T 2>nul"
-cmd /c "netstat -ano | findstr :5173"   ← get PID, then:
+cmd /c "netstat -ano | findstr :3745"   ← get PID, then:
 cmd /c "taskkill /F /PID <pid>"
 npm run dev
 ```

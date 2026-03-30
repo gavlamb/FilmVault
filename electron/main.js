@@ -40,6 +40,7 @@ ipcMain.handle('db:searchMovies',       (_e, query)     => db.searchMovies(query
 ipcMain.handle('db:getMoviesByStatus',   (_e, status)           => db.getMoviesByStatus(status))
 ipcMain.handle('db:updateMovieTmdbData', (_e, oldId, newId, poster) => db.updateMovieTmdbData(oldId, newId, poster))
 ipcMain.handle('db:updateMoviePoster',   (_e, tmdbId, localPath)    => db.updateMoviePoster(tmdbId, localPath))
+ipcMain.handle('db:updateMovieRating',   (_e, tmdbId, rating, votes) => db.updateMovieRating(tmdbId, rating, votes))
 
 // ─── IPC: Collections ─────────────────────────────────────────────────────────
 ipcMain.handle('db:getAllCollections',  ()               => db.getAllCollections())

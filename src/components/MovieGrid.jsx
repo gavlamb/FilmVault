@@ -51,6 +51,10 @@ function MovieCard({ movie, onClick }) {
   const [posterSrc, setPosterSrc] = useState(() => getPosterUrl(movie.poster_path))
 
   useEffect(() => {
+    console.log(`[MovieCard] ${movie.title} | poster_path="${movie.poster_path}" | resolved="${getPosterUrl(movie.poster_path)}"`)
+  }, [movie.tmdb_id])
+
+  useEffect(() => {
     if (!movie.poster_path) return
     // Only cache remote TMDB URLs — filmvault:// means already cached
     if (!movie.poster_path.startsWith('http')) return
@@ -104,9 +108,17 @@ function MovieCard({ movie, onClick }) {
         <p className="truncate text-xs font-semibold leading-tight text-gray-200 group-hover:text-white transition-colors">
           {movie.title}
         </p>
-        {movie.year && (
-          <p className="text-[11px] text-gray-600">{movie.year}</p>
-        )}
+        <div className="flex items-center justify-between gap-1">
+          {movie.year && (
+            <p className="text-[11px] text-gray-600">{movie.year}</p>
+          )}
+          {movie.omdb_rating && (
+            <span className="inline-flex items-center gap-1 rounded px-1 py-px flex-shrink-0" style={{ backgroundColor: '#1a1a1a' }}>
+              <span className="text-[9px] font-bold leading-none" style={{ color: '#F5C518' }}>IMDb</span>
+              <span className="text-[10px] font-semibold leading-none text-white">{movie.omdb_rating}</span>
+            </span>
+          )}
+        </div>
       </div>
     </button>
   )

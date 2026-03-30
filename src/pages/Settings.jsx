@@ -127,6 +127,8 @@ function StatusLine({ status }) {
 function ApiKeysSection() {
   const [tmdb,          setTmdb]          = useState('')
   const [tmdbSaved,     setTmdbSaved]     = useState(false)
+  const [omdb,          setOmdb]          = useState('')
+  const [omdbSaved,     setOmdbSaved]     = useState(false)
   const [ebayApp,       setEbayApp]       = useState('')
   const [ebayAppSaved,  setEbayAppSaved]  = useState(false)
   const [ebayCert,      setEbayCert]      = useState('')
@@ -135,10 +137,12 @@ function ApiKeysSection() {
   useEffect(() => {
     Promise.all([
       getSetting('tmdb_api_key'),
+      getSetting('omdb_api_key'),
       getSetting('ebay_app_id'),
       getSetting('ebay_cert_id'),
-    ]).then(([t, a, c]) => {
+    ]).then(([t, o, a, c]) => {
       setTmdb(t || '')
+      setOmdb(o || '')
       setEbayApp(a || '')
       setEbayCert(c || '')
     })
@@ -170,6 +174,22 @@ function ApiKeysSection() {
             Save
           </button>
           {tmdbSaved && <SavedBadge />}
+        </div>
+      </div>
+
+      {/* OMDB */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-gray-300">OMDB API Key</label>
+        <p className="text-xs text-gray-500">Required for IMDb ratings. Get a free key at omdbapi.com.</p>
+        <div className="flex items-center gap-2">
+          <PasswordInput value={omdb} onChange={setOmdb} placeholder="xxxxxxxx" />
+          <button
+            onClick={() => save('omdb_api_key', omdb, setOmdbSaved)}
+            className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
+          >
+            Save
+          </button>
+          {omdbSaved && <SavedBadge />}
         </div>
       </div>
 

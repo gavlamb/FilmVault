@@ -21,6 +21,7 @@ function App() {
   const [selectedMovie,      setSelectedMovie]      = useState(null)
   const [selectedCollection, setSelectedCollection] = useState(null)
   const [libraryVersion,     setLibraryVersion]     = useState(0)
+  const [searchQuery,        setSearchQuery]        = useState('')
   // Bump this when leaving Settings so SearchBar remounts and reloads the API key
   const [searchKey,          setSearchKey]          = useState(0)
 
@@ -42,6 +43,7 @@ function App() {
       if (p === 'settings') {
         // Leaving settings — remount SearchBar so it picks up any new API key
         setSearchKey((k) => k + 1)
+        setSearchQuery('')
         return 'library'
       }
       return 'settings'
@@ -74,6 +76,7 @@ function App() {
               key={searchKey}
               onMovieSelect={handleMovieSelect}
               onCollectionSelect={handleCollectionSelect}
+              onQueryChange={setSearchQuery}
             />
           )}
         </div>
@@ -102,6 +105,7 @@ function App() {
           <Library
             onMovieClick={handleMovieSelect}
             refreshKey={libraryVersion}
+            searchQuery={searchQuery}
           />
         )}
       </main>

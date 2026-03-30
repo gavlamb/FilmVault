@@ -49,6 +49,11 @@ export function deleteMovie(tmdbId) {
   return apiFetch(`/api/movies/${tmdbId}`, { method: 'DELETE' })
 }
 
+export function searchMovies(query) {
+  if (isElectron) return window.electronAPI.searchMovies(query)
+  return apiFetch(`/api/movies/search?q=${encodeURIComponent(query)}`)
+}
+
 export function getMoviesByStatus(status) {
   if (isElectron) return window.electronAPI.getMoviesByStatus(status)
   return apiFetch(`/api/movies/status/${status}`)
@@ -66,6 +71,11 @@ export function cachePoster(url, tmdbId) {
   // Server is always online — download the poster server-side
   return apiFetch(`/api/posters/${tmdbId}`, { method: 'POST', body: { url } })
     .then((data) => data.filename)
+}
+
+export function updateMovieRating(tmdbId, imdbRating, imdbVotes) {
+  if (isElectron) return window.electronAPI.updateMovieRating(tmdbId, imdbRating, imdbVotes)
+  return apiFetch(`/api/movies/${tmdbId}/rating`, { method: 'PATCH', body: { imdbRating, imdbVotes } })
 }
 
 export function updateMoviePoster(tmdbId, posterPath) {

@@ -26,9 +26,13 @@ app.get('/api/movies', (_req, res) => {
   res.json(db.getAllMovies())
 })
 
-// Must be before /api/movies/:id so "status" isn't matched as an id
+// Must be before /api/movies/:id so these aren't matched as an id
 app.get('/api/movies/status/:status', (req, res) => {
   res.json(db.getMoviesByStatus(req.params.status))
+})
+
+app.get('/api/movies/search', (req, res) => {
+  res.json(db.searchMovies(req.query.q || ''))
 })
 
 app.get('/api/movies/:id', (req, res) => {
@@ -58,6 +62,13 @@ app.put('/api/movies/:id/tmdb', (req, res) => {
 // Update poster path only
 app.patch('/api/movies/:id/poster', (req, res) => {
   db.updateMoviePoster(Number(req.params.id), req.body.posterPath)
+  res.json({ ok: true })
+})
+
+// Store IMDb rating
+app.patch('/api/movies/:id/rating', (req, res) => {
+  const { imdbRating, imdbVotes } = req.body
+  db.updateMovieRating(Number(req.params.id), imdbRating ?? null, imdbVotes ?? null)
   res.json({ ok: true })
 })
 

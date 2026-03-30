@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { searchMovies, searchCollections } from '../utils/tmdb'
+import { searchMovies as searchTmdb, searchCollections } from '../utils/tmdb'
 import StatusBadge from './StatusBadge'
-import { getSetting, getMovieById } from '../utils/api'
+import { getSetting, searchMovies as searchLibrary } from '../utils/api'
+import { getPosterUrl } from '../utils/posterUrl'
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value)
@@ -28,20 +29,28 @@ function FilmIcon() {
   )
 }
 
-export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
-  const [query,         setQuery]         = useState('')
-  const [results,       setResults]       = useState([])
-  const [collections,   setCollections]   = useState([])
-  const [isLoading,     setIsLoading]     = useState(false)
-  const [isOpen,        setIsOpen]        = useState(false)
-  const [apiKey,        setApiKey]        = useState(null)   // null = not yet loaded
-  const [error,         setError]         = useState(null)
-  const [statusCache,   setStatusCache]   = useState({})     // { [tmdb_id]: status | '__none__' }
-  const [dropdownRect,  setDropdownRect]  = useState(null)
+function SectionLabel({ children }) {
+  return (
+    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 bg-gray-900/60 border-b border-gray-800/60">
+      {children}
+    </div>
+  )
+}
+
+export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryChange }) {
+  const [query,          setQuery]          = useState('')
+  const [libraryResults, setLibraryResults] = useState([])
+  const [results,        setResults]        = useState([])
+  const [collections,    setCollections]    = useState([])
+  const [isLoading,      setIsLoading]      = useState(false)
+  const [isOpen,         setIsOpen]         = useState(false)
+  const [apiKey,         setApiKey]         = useState(null)   // null = not yet loaded
+  const [error,          setError]          = useState(null)
+  const [dropdownRect,   setDropdownRect]   = useState(null)
 
   const containerRef = useRef(null)
   const inputRef     = useRef(null)
-  const dropdownRef  = useRef(null)   // portal dropdown container
+  const dropdownRef  = useRef(null)
   const debouncedQuery = useDebounce(query, 400)
 
   // Load API key once on mount
@@ -51,12 +60,18 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
     })
   }, [])
 
+  // Notify parent of raw query for live grid filtering
+  useEffect(() => {
+    onQueryChange?.(query)
+  }, [query])
+
   // Run search when debounced query or apiKey changes
   useEffect(() => {
     if (apiKey === null) return          // not loaded yet
     if (!debouncedQuery.trim()) {
       setResults([])
       setCollections([])
+      setLibraryResults([])
       setIsOpen(false)
       setError(null)
       return
@@ -64,46 +79,49 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
 
     setIsOpen(true)
     setError(null)
-
-    if (!apiKey) return                  // key empty — dropdown shows warning, no fetch
-
-    let cancelled = false
     setIsLoading(true)
 
-    Promise.all([
-      searchMovies(debouncedQuery, apiKey),
-      searchCollections(debouncedQuery, apiKey),
-    ])
-      .then(([movies, cols]) => {
+    let cancelled = false
+
+    // Library search always runs — no API key required
+    const libPromise = searchLibrary(debouncedQuery)
+      .then((r) => r.slice(0, 4))
+      .catch(() => [])
+
+    // TMDB search only if API key is set; capture error without rejecting
+    let tmdbErr = null
+    const tmdbPromise = apiKey
+      ? Promise.all([
+          searchTmdb(debouncedQuery, apiKey),
+          searchCollections(debouncedQuery, apiKey),
+        ]).catch((err) => { tmdbErr = err; return [[], []] })
+      : Promise.resolve([[], []])
+
+    Promise.all([libPromise, tmdbPromise])
+      .then(([libResults, [movies, cols]]) => {
         if (cancelled) return
-        setResults(movies)
+        const libIds = new Set(libResults.map((m) => m.tmdb_id))
+        setLibraryResults(libResults)
+        setResults(movies.filter((m) => !libIds.has(m.tmdb_id)).slice(0, 6))
         setCollections(cols)
         setIsLoading(false)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setIsLoading(false)
-        setResults([])
-        setCollections([])
-        if (err.message === 'INVALID_API_KEY') {
-          setError('Invalid TMDB API key. Check your Settings.')
-        } else if (err.message === 'NO_API_KEY') {
-          setError(null)   // handled separately
-        } else {
-          setError('Network error — check your connection.')
+        if (tmdbErr) {
+          if (tmdbErr.message === 'INVALID_API_KEY') {
+            setError('Invalid TMDB API key. Check your Settings.')
+          } else if (tmdbErr.message !== 'NO_API_KEY') {
+            setError('Network error — check your connection.')
+          }
         }
       })
 
     return () => { cancelled = true }
   }, [debouncedQuery, apiKey])
 
-  // Measure input position whenever dropdown opens or window resizes
+  // Measure input position for portal positioning
   useEffect(() => {
     if (!isOpen) return
     function measure() {
-      if (inputRef.current) {
-        setDropdownRect(inputRef.current.getBoundingClientRect())
-      }
+      if (inputRef.current) setDropdownRect(inputRef.current.getBoundingClientRect())
     }
     measure()
     window.addEventListener('resize', measure)
@@ -114,7 +132,7 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
     }
   }, [isOpen])
 
-  // Close on click outside — must exclude the portal dropdown (it lives outside containerRef)
+  // Close on click outside (portal dropdown lives outside containerRef)
   useEffect(() => {
     function onMouseDown(e) {
       const inContainer = containerRef.current?.contains(e.target)
@@ -125,23 +143,13 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [])
 
-  // Fetch DB status on hover — cached so it only calls once per tmdb_id per session
-  async function handleHover(tmdbId) {
-    if (tmdbId in statusCache) return
-    const movie = await getMovieById(tmdbId)
-    setStatusCache((prev) => ({
-      ...prev,
-      [tmdbId]: movie ? movie.status : '__none__',
-    }))
-  }
-
   function handleSelect(movie) {
-    console.log('[SearchBar] onMovieSelect called:', movie.title, movie.tmdb_id)
     setIsOpen(false)
     setQuery('')
     setResults([])
+    setLibraryResults([])
     setCollections([])
-    setStatusCache({})
+    onQueryChange?.('')
     onMovieSelect(movie)
     inputRef.current?.blur()
   }
@@ -150,23 +158,26 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
     setIsOpen(false)
     setQuery('')
     setResults([])
+    setLibraryResults([])
     setCollections([])
-    setStatusCache({})
+    onQueryChange?.('')
     onCollectionSelect(col)
     inputRef.current?.blur()
   }
 
   const showDropdown = isOpen && query.trim().length > 0
+  const hasLibrary   = libraryResults.length > 0
+  const hasTmdb      = results.length > 0 || collections.length > 0
 
   const dropdown = showDropdown && dropdownRect && createPortal(
     <>
-      {/* Backdrop — blocks library clicks */}
+      {/* Backdrop */}
       <div
         style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
         onClick={() => setIsOpen(false)}
       />
 
-      {/* Dropdown — portalled to document.body, positioned via getBoundingClientRect */}
+      {/* Dropdown */}
       <div
         ref={dropdownRef}
         style={{
@@ -178,8 +189,13 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
         }}
         className="overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-2xl shadow-black/70"
       >
-        {/* No API key */}
-        {!apiKey && (
+        {/* Loading */}
+        {isLoading && (
+          <div className="px-4 py-3.5 text-sm text-gray-500">Searching…</div>
+        )}
+
+        {/* No API key warning (only shown when no library results either) */}
+        {!isLoading && !apiKey && !hasLibrary && (
           <div className="flex items-center gap-2.5 px-4 py-3.5 text-sm text-gray-400">
             <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -189,8 +205,8 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
           </div>
         )}
 
-        {/* Error state */}
-        {apiKey && error && (
+        {/* Error */}
+        {!isLoading && error && (
           <div className="flex items-center gap-2.5 px-4 py-3.5 text-sm text-red-400">
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -200,122 +216,111 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
           </div>
         )}
 
-        {/* Loading */}
-        {apiKey && isLoading && (
-          <div className="px-4 py-3.5 text-sm text-gray-500">Searching…</div>
-        )}
-
-        {/* No results */}
-        {apiKey && !isLoading && !error && results.length === 0 && collections.length === 0 && debouncedQuery.trim() && (
+        {/* No results at all */}
+        {!isLoading && !error && !hasLibrary && !hasTmdb && debouncedQuery.trim() && (
           <div className="px-4 py-3.5 text-sm text-gray-500">
             No results for <span className="text-gray-300">"{debouncedQuery}"</span>
           </div>
         )}
 
-        {/* Results list */}
-        {apiKey && !isLoading && !error && (results.length > 0 || collections.length > 0) && (
-          <ul className="max-h-[420px] overflow-y-auto divide-y divide-gray-800/60">
-            {/* Collection results */}
-            {collections.map((col) => (
-              <li
-                key={`col-${col.tmdb_collection_id}`}
-                onMouseDown={() => handleCollectionSelect(col)}
-                className="
-                  flex items-center gap-3 px-3 py-2.5
-                  hover:bg-gray-800/70 cursor-pointer
-                  transition-colors group
-                "
-              >
-                {/* Poster thumbnail */}
-                <div className="w-9 h-[54px] flex-shrink-0 overflow-hidden rounded bg-gray-800">
-                  {col.poster_path ? (
-                    <img
-                      src={col.poster_path}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <FilmIcon />
+        {/* Results */}
+        {!isLoading && (hasLibrary || hasTmdb) && (
+          <ul className="max-h-[480px] overflow-y-auto">
+
+            {/* ── In Your Library ─────────────────────────────────────── */}
+            {hasLibrary && (
+              <>
+                <SectionLabel>In Your Library</SectionLabel>
+                {libraryResults.map((movie) => (
+                  <li
+                    key={`lib-${movie.tmdb_id}`}
+                    onMouseDown={() => handleSelect(movie)}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-800/70 cursor-pointer transition-colors group divide-y divide-gray-800/60"
+                  >
+                    <div className="w-9 h-[54px] flex-shrink-0 overflow-hidden rounded bg-gray-800">
+                      {getPosterUrl(movie.poster_path) ? (
+                        <img src={getPosterUrl(movie.poster_path)} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center"><FilmIcon /></div>
+                      )}
                     </div>
-                  )}
-                </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white group-hover:text-indigo-200 transition-colors">
+                        {movie.title}
+                      </p>
+                      {movie.year && <p className="text-xs text-gray-500 mt-0.5">{movie.year}</p>}
+                    </div>
+                    <StatusBadge status={movie.status} size="sm" />
+                  </li>
+                ))}
+              </>
+            )}
 
-                {/* Name + film count */}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-white group-hover:text-teal-200 transition-colors">
-                    {col.name}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">Collection</p>
-                </div>
+            {/* Divider between sections */}
+            {hasLibrary && hasTmdb && (
+              <div className="border-t border-gray-700/60" />
+            )}
 
-                {/* Teal collection badge */}
-                <span className="inline-flex items-center rounded-full border border-teal-500/40 bg-teal-500/20 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-teal-400 whitespace-nowrap flex-shrink-0">
-                  Collection
-                </span>
-              </li>
-            ))}
+            {/* ── From TMDB ───────────────────────────────────────────── */}
+            {hasTmdb && (
+              <>
+                {hasLibrary && <SectionLabel>From TMDB</SectionLabel>}
 
-            {/* Movie results */}
-            {results.map((movie) => {
-              const cachedStatus = statusCache[movie.tmdb_id]
-              const inLibrary    = cachedStatus && cachedStatus !== '__none__'
+                {/* Collections */}
+                {collections.map((col) => (
+                  <li
+                    key={`col-${col.tmdb_collection_id}`}
+                    onMouseDown={() => handleCollectionSelect(col)}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-800/70 cursor-pointer transition-colors group"
+                  >
+                    <div className="w-9 h-[54px] flex-shrink-0 overflow-hidden rounded bg-gray-800">
+                      {col.poster_path ? (
+                        <img src={col.poster_path} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center"><FilmIcon /></div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white group-hover:text-teal-200 transition-colors">
+                        {col.name}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">Collection</p>
+                    </div>
+                    <span className="inline-flex items-center rounded-full border border-teal-500/40 bg-teal-500/20 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-teal-400 whitespace-nowrap flex-shrink-0">
+                      Collection
+                    </span>
+                  </li>
+                ))}
 
-              return (
-                <li
-                  key={movie.tmdb_id}
-                  onMouseEnter={() => handleHover(movie.tmdb_id)}
-                  onMouseDown={() => handleSelect(movie)}
-                  className="
-                    flex items-center gap-3 px-3 py-2.5
-                    hover:bg-gray-800/70 cursor-pointer
-                    transition-colors group
-                  "
-                >
-                  {/* Poster thumbnail */}
-                  <div className="w-9 h-[54px] flex-shrink-0 overflow-hidden rounded bg-gray-800">
-                    {movie.poster_path ? (
-                      <img
-                        src={movie.poster_path}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center">
-                        <FilmIcon />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Title + year */}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-white group-hover:text-indigo-200 transition-colors">
-                      {movie.title}
-                    </p>
-                    {movie.year && (
-                      <p className="text-xs text-gray-500 mt-0.5">{movie.year}</p>
-                    )}
-                  </div>
-
-                  {/* Library status badge (shown once DB is checked on hover) */}
-                  {inLibrary && (
-                    <StatusBadge status={cachedStatus} size="sm" />
-                  )}
-
-                  {/* "In library" dot while hover-check is pending */}
-                  {!cachedStatus && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  )}
-                </li>
-              )
-            })}
+                {/* TMDB movies */}
+                {results.map((movie) => (
+                  <li
+                    key={movie.tmdb_id}
+                    onMouseDown={() => handleSelect(movie)}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-800/70 cursor-pointer transition-colors group"
+                  >
+                    <div className="w-9 h-[54px] flex-shrink-0 overflow-hidden rounded bg-gray-800">
+                      {movie.poster_path ? (
+                        <img src={movie.poster_path} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center"><FilmIcon /></div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white group-hover:text-indigo-200 transition-colors">
+                        {movie.title}
+                      </p>
+                      {movie.year && <p className="text-xs text-gray-500 mt-0.5">{movie.year}</p>}
+                    </div>
+                  </li>
+                ))}
+              </>
+            )}
           </ul>
         )}
 
         {/* Footer attribution */}
-        {(results.length > 0 || collections.length > 0) && (
+        {hasTmdb && (
           <div className="border-t border-gray-800 px-3 py-1.5 text-right">
             <span className="text-[10px] text-gray-600">Powered by TMDB</span>
           </div>
@@ -330,7 +335,6 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
 
       {/* ── Input ─────────────────────────────────────────────────────────── */}
       <div className="relative">
-        {/* Search icon */}
         <svg
           className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
           fill="none" viewBox="0 0 24 24" stroke="currentColor"
@@ -354,13 +358,19 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
           "
         />
 
-        {/* Right-side: spinner or clear button */}
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           {isLoading ? (
             <Spinner />
           ) : query.length > 0 ? (
             <button
-              onClick={() => { setQuery(''); setResults([]); setIsOpen(false); inputRef.current?.focus() }}
+              onClick={() => {
+                setQuery('')
+                setResults([])
+                setLibraryResults([])
+                setIsOpen(false)
+                onQueryChange?.('')
+                inputRef.current?.focus()
+              }}
               className="text-gray-600 hover:text-gray-400 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -371,7 +381,6 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect }) {
         </div>
       </div>
 
-      {/* Dropdown rendered into document.body via portal */}
       {dropdown}
     </div>
   )

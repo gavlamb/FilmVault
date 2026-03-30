@@ -1,5 +1,21 @@
 # Changelog
 
+## [Session 9] - 2026-03-30
+
+### Added
+- `src/utils/omdb.js` — `getIMDbRating(imdbId, apiKey)`: calls OMDB API, returns `{ imdbRating, imdbVotes }` or null
+- `src/utils/tmdb.js` — `mapDetailResult` now includes `imdb_id` from TMDB `/movie/{id}` response
+- `electron/database.js` — `updateMovieRating(tmdbId, imdbRating, imdbVotes)`; schema migrations add `omdb_rating TEXT` and `omdb_votes TEXT` columns via `ALTER TABLE` (safe on existing DBs); `omdb_api_key` added to default settings
+- `electron/preload.js` / `electron/main.js` — `updateMovieRating` IPC handler
+- `server/index.js` — `GET /api/movies/search?q=` endpoint; `PATCH /api/movies/:id/rating` endpoint
+- `src/utils/api.js` — `searchMovies(query)` and `updateMovieRating(tmdbId, imdbRating, imdbVotes)` exports
+- `src/components/SearchBar.jsx` — dual-section dropdown: "In Your Library" (top, up to 4 results with status badge, no hover required) + "From TMDB" (below divider, up to 6 results, deduplicated against library matches); grid filter propagated to parent via `onQueryChange` prop on every keystroke
+- `src/pages/Library.jsx` — accepts `searchQuery` prop; filters grid by title (case-insensitive) in addition to status filter; status counts remain stable while typing
+- `src/App.jsx` — `searchQuery` state wired between `SearchBar.onQueryChange` and `Library.searchQuery`; cleared on settings navigation
+- `src/components/MovieModal.jsx` — on add: fire-and-forget fetches TMDB detail → OMDB rating → stores via `updateMovieRating`; displays ⭐ rating + vote count in movie info header
+- `src/components/MovieGrid.jsx` — `MovieCard` shows `⭐ {omdb_rating}` in the info row when present
+- `src/pages/Settings.jsx` — OMDB API key field added to API Keys section
+
 ## [Session 8] - 2026-03-29
 
 ### Added

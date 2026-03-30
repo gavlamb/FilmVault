@@ -27,6 +27,7 @@ function mapDetailResult(movie) {
     overview:    movie.overview || '',
     genres:      JSON.stringify((movie.genres || []).map((g) => g.name)),
     runtime:     movie.runtime || null,
+    imdb_id:     movie.imdb_id || null,
   }
 }
 

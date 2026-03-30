@@ -12,7 +12,7 @@ const FILTERS = [
   { value: 'digital',   label: 'Digital' },
 ]
 
-export default function Library({ onMovieClick, refreshKey }) {
+export default function Library({ onMovieClick, refreshKey, searchQuery = '' }) {
   const [movies,        setMovies]        = useState([])
   const [activeFilter,  setActiveFilter]  = useState('all')
 
@@ -20,15 +20,16 @@ export default function Library({ onMovieClick, refreshKey }) {
     getAllMovies().then(setMovies)
   }, [refreshKey])
 
-  // Count per status
+  // Count per status (before text filter so counts stay stable while typing)
   const counts = movies.reduce((acc, m) => {
     acc[m.status] = (acc[m.status] || 0) + 1
     return acc
   }, {})
 
-  const filtered = activeFilter === 'all'
-    ? movies
-    : movies.filter((m) => m.status === activeFilter)
+  const trimmed = searchQuery.trim().toLowerCase()
+
+  const filtered = (activeFilter === 'all' ? movies : movies.filter((m) => m.status === activeFilter))
+    .filter((m) => !trimmed || m.title.toLowerCase().includes(trimmed))
 
   return (
     <div className="flex flex-col gap-4">
@@ -65,7 +66,7 @@ export default function Library({ onMovieClick, refreshKey }) {
       <MovieGrid
         movies={filtered}
         onMovieClick={onMovieClick}
-        hasFilter={activeFilter !== 'all'}
+        hasFilter={activeFilter !== 'all' || !!trimmed}
       />
     </div>
   )

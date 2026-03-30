@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMoviesByStatus:   (status)               => ipcRenderer.invoke('db:getMoviesByStatus', status),
   updateMovieTmdbData: (oldId, newId, poster) => ipcRenderer.invoke('db:updateMovieTmdbData', oldId, newId, poster),
   updateMoviePoster:   (tmdbId, localPath)    => ipcRenderer.invoke('db:updateMoviePoster', tmdbId, localPath),
+  updateMovieRating:   (tmdbId, rating, votes) => ipcRenderer.invoke('db:updateMovieRating', tmdbId, rating, votes),
 
   // Collections
   getAllCollections:  ()                   => ipcRenderer.invoke('db:getAllCollections'),
