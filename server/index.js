@@ -41,7 +41,14 @@ app.get('/api/movies/:id', (req, res) => {
 })
 
 app.post('/api/movies', (req, res) => {
-  res.json(db.addMovie(req.body))
+  const movie = db.addMovie(req.body)
+  res.json(movie)
+  // Pre-cache poster server-side so the client's cachePoster call is a fast hit
+  if (movie.poster_path && movie.poster_path.startsWith('https://')) {
+    downloadPoster(movie.tmdb_id, movie.poster_path).then((filename) => {
+      if (filename) db.updateMoviePoster(movie.tmdb_id, `/api/posters/${movie.tmdb_id}`)
+    })
+  }
 })
 
 app.put('/api/movies/:id', (req, res) => {
@@ -99,6 +106,24 @@ app.post('/api/settings/:key', (req, res) => {
 
 // ─── Posters ──────────────────────────────────────────────────────────────────
 
+// Shared helper — downloads a TMDB poster URL to disk. Returns the filename on
+// success, null on failure. Safe to call concurrently; skips if already cached.
+function downloadPoster(tmdbId, url) {
+  return new Promise((resolve) => {
+    const dest     = path.join(POSTER_DIR, `${tmdbId}.jpg`)
+    const filename = `${tmdbId}.jpg`
+    if (fs.existsSync(dest)) return resolve(filename)
+    const file = fs.createWriteStream(dest)
+    https.get(url, (httpRes) => {
+      if (httpRes.statusCode !== 200) {
+        file.close(); fs.unlink(dest, () => {}); return resolve(null)
+      }
+      httpRes.pipe(file)
+      file.on('finish', () => { file.close(); resolve(filename) })
+    }).on('error', () => { file.close(); fs.unlink(dest, () => {}); resolve(null) })
+  })
+}
+
 // Serve a cached poster by tmdb_id
 app.get('/api/posters/:tmdbId', (req, res) => {
   const filePath = path.join(POSTER_DIR, `${req.params.tmdbId}.jpg`)
@@ -110,26 +135,11 @@ app.get('/api/posters/:tmdbId', (req, res) => {
 app.post('/api/posters/:tmdbId', (req, res) => {
   const { url } = req.body
   if (!url) return res.status(400).json({ error: 'url required' })
-
-  const dest     = path.join(POSTER_DIR, `${req.params.tmdbId}.jpg`)
-  const filename = `${req.params.tmdbId}.jpg`
-
-  if (fs.existsSync(dest)) return res.json({ filename })
-
-  const file = fs.createWriteStream(dest)
-  https.get(url, (httpRes) => {
-    if (httpRes.statusCode !== 200) {
-      file.close()
-      fs.unlink(dest, () => {})
-      return res.status(502).json({ error: `Upstream ${httpRes.statusCode}` })
-    }
-    httpRes.pipe(file)
-    file.on('finish', () => { file.close(); res.json({ filename }) })
-  }).on('error', (err) => {
-    file.close()
-    fs.unlink(dest, () => {})
-    res.status(502).json({ error: err.message })
-  })
+  downloadPoster(req.params.tmdbId, url)
+    .then((filename) => filename
+      ? res.json({ filename })
+      : res.status(502).json({ error: 'Download failed' })
+    )
 })
 
 // ─── Jellyfin ─────────────────────────────────────────────────────────────────
