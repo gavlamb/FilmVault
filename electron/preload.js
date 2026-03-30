@@ -1,6 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
+// Passed by main.js via webPreferences.additionalArguments when it loads a
+// remote server URL directly, so api.js knows to use fetch rather than IPC.
+const serverUrlArg = process.argv.find((a) => a.startsWith('--filmvault-server='))
+const serverUrl    = serverUrlArg ? serverUrlArg.slice('--filmvault-server='.length) : null
+
 contextBridge.exposeInMainWorld('electronAPI', {
+  // The remote server URL, if Electron loaded one directly (null in local mode)
+  serverUrl,
+
   // Movies
   getAllMovies:      ()              => ipcRenderer.invoke('db:getAllMovies'),
   getMovieById:     (tmdbId)        => ipcRenderer.invoke('db:getMovieById', tmdbId),

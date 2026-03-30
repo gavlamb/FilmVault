@@ -6,7 +6,21 @@ const db    = require('./database')
 
 const isDev = !app.isPackaged
 
+// Read the remote server URL from the local DB (set via Settings page).
+// Returns null when the user hasn't configured or enabled a server.
+function getConfiguredServerUrl() {
+  try {
+    if (db.getSetting('use_server') !== 'true') return null
+    const url = db.getSetting('server_url')
+    return url ? url.replace(/\/$/, '') : null
+  } catch {
+    return null
+  }
+}
+
 function createWindow() {
+  const serverUrl = getConfiguredServerUrl()
+
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -16,11 +30,17 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Pass the server URL to the preload so api.js can detect remote mode
+      // even when window.electronAPI is present.
+      additionalArguments: serverUrl ? [`--filmvault-server=${serverUrl}`] : [],
     },
     show: false,
   })
 
-  if (isDev) {
+  if (serverUrl) {
+    // Electron becomes a wrapper around the shared server UI
+    win.loadURL(serverUrl)
+  } else if (isDev) {
     win.loadURL('http://localhost:3745')
     win.webContents.openDevTools()
   } else {

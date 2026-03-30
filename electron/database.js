@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS = {
   notifications_sound:   'true',
   notifications_toast:   'true',
   notifications_badge:   'true',
+  server_url:            '',
+  use_server:            'false',
 }
 
 function getDb() {

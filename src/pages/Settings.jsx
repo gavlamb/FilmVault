@@ -597,11 +597,126 @@ function ExportSection() {
   )
 }
 
+// ── Remote Server section ─────────────────────────────────────────────────────
+
+function ServerSection() {
+  const [url,         setUrl]         = useState('')
+  const [isConnected, setIsConnected] = useState(false)
+  const [status,      setStatus]      = useState(null)   // null | { type, msg }
+  const [testing,     setTesting]     = useState(false)
+
+  useEffect(() => {
+    Promise.all([
+      getSetting('server_url'),
+      getSetting('use_server'),
+    ]).then(([savedUrl, useServer]) => {
+      const u = savedUrl || ''
+      setUrl(u)
+      setIsConnected(useServer === 'true' && !!u)
+    })
+  }, [])
+
+  async function handleTest() {
+    const base = url.replace(/\/$/, '')
+    if (!base) { setStatus({ type: 'error', msg: 'Enter a server URL first.' }); return }
+    setTesting(true)
+    setStatus(null)
+    try {
+      const res = await fetch(`${base}/api/settings/tmdb_api_key`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setStatus({ type: 'success', msg: 'FilmVault server is reachable.' })
+    } catch (err) {
+      setStatus({ type: 'error', msg: `Cannot reach server: ${err.message}` })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  async function handleConnect() {
+    const base = url.replace(/\/$/, '')
+    if (!base) { setStatus({ type: 'error', msg: 'Enter a server URL first.' }); return }
+    await Promise.all([
+      setSetting('server_url', base),
+      setSetting('use_server', 'true'),
+    ])
+    localStorage.setItem('filmvault_server_url', base)
+    setIsConnected(true)
+    setStatus({ type: 'success', msg: `Connected. All API calls now route to ${base}. Restart Electron to also load the server UI directly.` })
+  }
+
+  async function handleDisconnect() {
+    await setSetting('use_server', 'false')
+    localStorage.removeItem('filmvault_server_url')
+    setIsConnected(false)
+    setStatus({ type: 'success', msg: 'Disconnected. Reload the app to restore local database mode.' })
+  }
+
+  return (
+    <section className="space-y-5">
+      <div>
+        <SectionTitle>Remote Server</SectionTitle>
+        <SectionDesc>Connect Electron to the shared FilmVault server so both apps use the same database.</SectionDesc>
+      </div>
+
+      {/* Connected indicator */}
+      {isConnected && (
+        <div className="flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3">
+          <div className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" />
+          <p className="min-w-0 flex-1 truncate text-sm text-green-300">{url}</p>
+          <button
+            onClick={handleDisconnect}
+            className="shrink-0 text-xs text-red-400 transition-colors hover:text-red-300"
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
+
+      {/* URL input */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-gray-300">Server URL</label>
+        <p className="text-xs text-gray-500">
+          The FilmVault Express server on your network (e.g. http://192.168.0.74:3000).
+        </p>
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="http://192.168.0.74:3000"
+          className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleTest}
+          disabled={testing}
+          className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700 hover:text-white disabled:opacity-50"
+        >
+          {testing ? 'Testing…' : 'Test Connection'}
+        </button>
+        <button
+          onClick={handleConnect}
+          disabled={testing}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+        >
+          {isConnected ? 'Update' : 'Use Server'}
+        </button>
+      </div>
+
+      <StatusLine status={status} />
+    </section>
+  )
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function Settings() {
   return (
     <div className="mx-auto max-w-2xl space-y-10 pb-12">
+      <ServerSection />
+      <hr className="border-gray-800" />
       <ApiKeysSection />
       <hr className="border-gray-800" />
       <JellyfinSection />
