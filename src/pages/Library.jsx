@@ -12,7 +12,7 @@ const FILTERS = [
   { value: 'digital',   label: 'Digital' },
 ]
 
-export default function Library({ onMovieClick, refreshKey, searchQuery = '' }) {
+export default function Library({ onMovieClick, onEbayClick, refreshKey, searchQuery = '' }) {
   const [movies,        setMovies]        = useState([])
   const [activeFilter,  setActiveFilter]  = useState('all')
 
@@ -66,6 +66,7 @@ export default function Library({ onMovieClick, refreshKey, searchQuery = '' }) 
       <MovieGrid
         movies={filtered}
         onMovieClick={onMovieClick}
+        onEbayClick={onEbayClick}
         hasFilter={activeFilter !== 'all' || !!trimmed}
       />
     </div>

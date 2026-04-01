@@ -5,6 +5,7 @@ import CollectionModal from './components/CollectionModal'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
 import EbayDashboard from './pages/EbayDashboard'
+import EbaySlidePanel from './components/EbaySlidePanel'
 import { getEbayStatus } from './utils/api'
 
 function TagIcon({ className }) {
@@ -37,6 +38,7 @@ function App() {
   const [searchKey,          setSearchKey]          = useState(0)
   // Badge: auctions ending in < 1 hr
   const [urgentAuctions,     setUrgentAuctions]     = useState(0)
+  const [selectedEbayMovie,  setSelectedEbayMovie]  = useState(null)
 
   useEffect(() => {
     function refreshBadge() {
@@ -147,6 +149,7 @@ function App() {
         ) : (
           <Library
             onMovieClick={handleMovieSelect}
+            onEbayClick={setSelectedEbayMovie}
             refreshKey={libraryVersion}
             searchQuery={searchQuery}
           />
@@ -159,6 +162,14 @@ function App() {
           movie={selectedMovie}
           onClose={handleModalClose}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* ── eBay Slide Panel ────────────────────────────────────────────── */}
+      {selectedEbayMovie && (
+        <EbaySlidePanel
+          movie={selectedEbayMovie}
+          onClose={() => setSelectedEbayMovie(null)}
         />
       )}
 

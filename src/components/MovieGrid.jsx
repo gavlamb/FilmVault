@@ -47,7 +47,7 @@ function EmptyState({ hasFilter }) {
   )
 }
 
-function MovieCard({ movie, onClick }) {
+function MovieCard({ movie, onClick, onEbayClick }) {
   const [posterSrc, setPosterSrc] = useState(() => getPosterUrl(movie.poster_path))
 
   useEffect(() => {
@@ -101,6 +101,20 @@ function MovieCard({ movie, onClick }) {
             : <StatusBadge status={movie.status} size="sm" />
           }
         </div>
+
+        {/* eBay quick-look button — wanted and upgrade only */}
+        {(movie.status === 'wanted' || movie.status === 'upgrade') && onEbayClick && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onEbayClick(movie) }}
+            title="View eBay listings"
+            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-gray-900/80 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-800 hover:text-amber-400"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M7 7h.01M7 3H5a2 2 0 00-2 2v2.586a1 1 0 00.293.707l8.414 8.414a2 2 0 002.828 0l2.586-2.586a2 2 0 000-2.828L8.707 3.293A1 1 0 008 3H7z" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Info */}
@@ -124,7 +138,7 @@ function MovieCard({ movie, onClick }) {
   )
 }
 
-export default function MovieGrid({ movies, onMovieClick, hasFilter }) {
+export default function MovieGrid({ movies, onMovieClick, onEbayClick, hasFilter }) {
   if (movies.length === 0) {
     return <EmptyState hasFilter={hasFilter} />
   }
@@ -132,7 +146,7 @@ export default function MovieGrid({ movies, onMovieClick, hasFilter }) {
   return (
     <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
       {movies.map((movie) => (
-        <MovieCard key={movie.tmdb_id} movie={movie} onClick={onMovieClick} />
+        <MovieCard key={movie.tmdb_id} movie={movie} onClick={onMovieClick} onEbayClick={onEbayClick} />
       ))}
     </div>
   )

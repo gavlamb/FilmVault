@@ -1,5 +1,13 @@
 # Changelog
 
+## [Session 12] - 2026-04-01
+
+### Added
+- `src/components/EbaySlidePanel.jsx` — fixed 420px slide-in panel (full width on mobile) anchored to right edge; z-index 500 (above library, below modal); 300ms CSS transform transition on open; Escape key + X button close; fetches cached listings via `getEbayListingsForMovie`, auto-triggers `searchEbayForMovie` if cache is empty, silently refreshes in background when stale data exists; filter pills (All / Buy It Now / Auction / Best Offer) + sort toggle (Best Match / Price ↑ / Price ↓) in panel header; scrollable listing cards with thumbnail, price, type badge, auction countdown, condition, seller, "View on eBay"; loading spinner and empty states
+- `src/components/MovieGrid.jsx` — eBay tag icon button added to wanted/upgrade cards, visible on group-hover at top-right of poster; click calls `onEbayClick(movie)` with `stopPropagation` so the movie modal does not also open; `onEbayClick` prop threaded through `MovieGrid`
+- `src/pages/Library.jsx` — `onEbayClick` prop accepted and passed to `MovieGrid`
+- `src/App.jsx` — `selectedEbayMovie` state; `EbaySlidePanel` rendered when set; panel and movie modal can be open simultaneously; `onEbayClick={setSelectedEbayMovie}` wired into `Library`
+
 ## [Session 11] - 2026-04-01
 
 ### Added
