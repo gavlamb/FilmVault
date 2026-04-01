@@ -4,6 +4,9 @@ dist-electron/
 .env
 *.local
 *.db
+*.db-shm
+*.db-wal
+filmvault.db
 out/
 .claude/
 git/

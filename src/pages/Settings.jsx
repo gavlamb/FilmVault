@@ -654,7 +654,7 @@ function ServerSection() {
   return (
     <section className="space-y-5">
       <div>
-        <SectionTitle>Remote Server</SectionTitle>
+        <SectionTitle>FilmVault Server</SectionTitle>
         <SectionDesc>Connect Electron to the shared FilmVault server so both apps use the same database.</SectionDesc>
       </div>
 
@@ -715,9 +715,9 @@ function ServerSection() {
 export default function Settings() {
   return (
     <div className="mx-auto max-w-2xl space-y-10 pb-12">
-      <ServerSection />
-      <hr className="border-gray-800" />
       <ApiKeysSection />
+      <hr className="border-gray-800" />
+      <ServerSection />
       <hr className="border-gray-800" />
       <JellyfinSection />
       <hr className="border-gray-800" />
