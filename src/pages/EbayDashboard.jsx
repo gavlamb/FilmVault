@@ -202,14 +202,87 @@ function MovieSection({ movie, defaultQuery, listings }) {
   )
 }
 
+// ── Filter + sort bar ─────────────────────────────────────────────────────────
+
+const TYPE_FILTERS = [
+  { value: 'all',         label: 'All' },
+  { value: 'FIXED_PRICE', label: 'Buy It Now' },
+  { value: 'AUCTION',     label: 'Auction' },
+  { value: 'BEST_OFFER',  label: 'Best Offer' },
+]
+
+const SORT_OPTIONS = [
+  { value: 'best_match', label: 'Best Match' },
+  { value: 'price_asc',  label: 'Price ↑' },
+  { value: 'price_desc', label: 'Price ↓' },
+]
+
+function FilterBar({ activeTypes, onToggle, onAll, sort, onSort, counts }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Type filters */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {TYPE_FILTERS.map((f) => {
+          const isAll    = f.value === 'all'
+          const isActive = isAll ? activeTypes.size === 0 : activeTypes.has(f.value)
+          const count    = isAll
+            ? Object.values(counts).reduce((a, b) => a + b, 0)
+            : (counts[f.value] || 0)
+
+          return (
+            <button
+              key={f.value}
+              onClick={() => isAll ? onAll() : onToggle(f.value)}
+              className={`
+                flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
+                ${isActive
+                  ? 'bg-indigo-600 text-white'
+                  : 'border border-gray-700/60 bg-gray-800/60 text-gray-400 hover:bg-gray-700/60 hover:text-gray-300'}
+              `}
+            >
+              {f.label}
+              <span className={`
+                rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums
+                ${isActive ? 'bg-indigo-500/60 text-indigo-100' : 'bg-gray-700 text-gray-500'}
+              `}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Sort toggle */}
+      <div className="flex items-center gap-1">
+        {SORT_OPTIONS.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => onSort(s.value)}
+            className={`
+              rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors
+              ${sort === s.value
+                ? 'bg-gray-700 text-white'
+                : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'}
+            `}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
 export default function EbayDashboard() {
-  const [groups,    setGroups]    = useState([])   // [{ movie, query, listings }]
-  const [status,    setStatus]    = useState(null)  // { lastPollTime, nextPollTime, … }
-  const [loading,   setLoading]   = useState(true)
-  const [polling,   setPolling]   = useState(false)
-  const [error,     setError]     = useState(null)
+  const [groups,      setGroups]      = useState([])        // [{ movie, query, listings }]
+  const [status,      setStatus]      = useState(null)
+  const [loading,     setLoading]     = useState(true)
+  const [polling,     setPolling]     = useState(false)
+  const [error,       setError]       = useState(null)
+  const [activeTypes, setActiveTypes] = useState(new Set()) // empty = show all
+  const [sort,        setSort]        = useState('best_match')
 
   const load = useCallback(async () => {
     try {
@@ -226,7 +299,6 @@ export default function EbayDashboard() {
 
   useEffect(() => {
     load()
-    // Refresh display every 30 s (countdown timers update themselves)
     const id = setInterval(load, 30_000)
     return () => clearInterval(id)
   }, [load])
@@ -235,7 +307,6 @@ export default function EbayDashboard() {
     setPolling(true)
     try {
       await triggerEbayPoll()
-      // Give the server a moment to process, then reload
       await new Promise((r) => setTimeout(r, 2000))
       await load()
     } catch (err) {
@@ -245,11 +316,42 @@ export default function EbayDashboard() {
     }
   }
 
-  const watchedCount  = groups.length
-  const listingCount  = groups.reduce((n, g) => n + g.listings.length, 0)
+  function toggleType(type) {
+    setActiveTypes((prev) => {
+      const next = new Set(prev)
+      next.has(type) ? next.delete(type) : next.add(type)
+      return next
+    })
+  }
+
+  // Apply sort to a listings array (filter already applied by parent before passing in)
+  function applySort(listings) {
+    if (sort === 'price_asc')  return [...listings].sort((a, b) => (a.price ?? Infinity)  - (b.price ?? Infinity))
+    if (sort === 'price_desc') return [...listings].sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity))
+    return listings // 'best_match' — server already sorted correctly
+  }
+
+  // Counts per type across all server data (for filter badge totals)
+  const typeCounts = groups.reduce((acc, g) => {
+    g.listings.forEach((l) => { acc[l.listing_type] = (acc[l.listing_type] || 0) + 1 })
+    return acc
+  }, {})
+
+  // Visible groups: filter listings by active types, sort, hide groups with zero results
+  const visibleGroups = groups
+    .map((g) => {
+      const filtered = activeTypes.size === 0
+        ? g.listings
+        : g.listings.filter((l) => activeTypes.has(l.listing_type))
+      return { ...g, listings: applySort(filtered) }
+    })
+    .filter((g) => activeTypes.size === 0 || g.listings.length > 0)
+
+  const listingCount = visibleGroups.reduce((n, g) => n + g.listings.length, 0)
+  const hasData      = groups.length > 0
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 pb-12">
+    <div className="mx-auto max-w-2xl space-y-6 pb-12">
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
@@ -265,7 +367,7 @@ export default function EbayDashboard() {
           )}
           {listingCount > 0 && (
             <p className="mt-0.5 text-xs text-gray-600">
-              {listingCount} listing{listingCount !== 1 ? 's' : ''} across {watchedCount} movie{watchedCount !== 1 ? 's' : ''}
+              {listingCount} listing{listingCount !== 1 ? 's' : ''} across {visibleGroups.length} movie{visibleGroups.length !== 1 ? 's' : ''}
             </p>
           )}
         </div>
@@ -278,6 +380,18 @@ export default function EbayDashboard() {
           {polling ? 'Searching…' : 'Refresh Now'}
         </button>
       </div>
+
+      {/* ── Filter + sort bar (only shown when there's data) ── */}
+      {!loading && hasData && (
+        <FilterBar
+          activeTypes={activeTypes}
+          onToggle={toggleType}
+          onAll={() => setActiveTypes(new Set())}
+          sort={sort}
+          onSort={setSort}
+          counts={typeCounts}
+        />
+      )}
 
       {/* ── Error ── */}
       {error && (
@@ -292,7 +406,7 @@ export default function EbayDashboard() {
       )}
 
       {/* ── Empty — no watched movies ── */}
-      {!loading && watchedCount === 0 && (
+      {!loading && groups.length === 0 && (
         <div className="rounded-lg border border-gray-800 bg-gray-900/40 py-12 text-center">
           <p className="text-sm text-gray-500">No movies marked as Wanted or Upgrade.</p>
           <p className="mt-1 text-xs text-gray-600">
@@ -301,8 +415,15 @@ export default function EbayDashboard() {
         </div>
       )}
 
+      {/* ── All filtered out ── */}
+      {!loading && groups.length > 0 && visibleGroups.length === 0 && (
+        <div className="py-8 text-center text-sm text-gray-600">
+          No listings match the selected filter.
+        </div>
+      )}
+
       {/* ── Movie sections ── */}
-      {!loading && groups.map(({ movie, query, listings }, i) => (
+      {!loading && visibleGroups.map(({ movie, query, listings }, i) => (
         <div key={movie.tmdb_id}>
           {i > 0 && <hr className="border-gray-800" />}
           <MovieSection movie={movie} defaultQuery={query} listings={listings} />
