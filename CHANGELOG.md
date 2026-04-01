@@ -1,5 +1,18 @@
 # Changelog
 
+## [Session 11] - 2026-04-01
+
+### Added
+- `electron/database.js` — `ebay_listings` table (id, tmdb_id, title, price, currency, listing_type, condition, image_url, ebay_url, end_time, bid_count, seller, last_updated, notified_1hr, notified_15min, notified_5min); functions: `upsertEbayListing` (upsert preserving notification flags via ON CONFLICT DO UPDATE), `getEbayListingsForMovie`, `getAllEbayListings`, `getAllWatchedMovies` (wanted + upgrade), `deleteStaleListings`, `clearEbayListings`, `markEbayListingNotified`; `ntfy_topic` added to DEFAULT_SETTINGS
+- `server/services/ebay.js` — eBay UK Browse API wrapper: `getEbayToken` (OAuth client_credentials with in-memory cache + 401 invalidation), `searchEbayUK` (EBAY_GB marketplace, DVDs & Blu-ray categories 617/267, limit 20, EXTENDED fieldgroups), `buildEbayQuery` (smart title sanitisation + year disambiguation for short/common titles, targets "4K Blu-ray")
+- `server/services/poller.js` — background polling service: dynamic interval (30 s if auction < 10 min, 2 min if < 1 hr, 5 min default), `startPoller` (fires after 10 s on server start), `triggerPoll` (immediate poll + reschedule), `getStatus` (lastPollTime, nextPollTime, totalListings, urgentAuctionCount); ntfy.sh push notifications at 1 hr / 15 min / 5 min thresholds with urgent/high/default priorities
+- `server/index.js` — eBay routes: `GET /api/ebay/listings` (all groups sorted: auctions first by end_time, then BIN/Best Offer by price), `GET /api/ebay/listings/:tmdbId`, `POST /api/ebay/poll` (manual trigger), `POST /api/ebay/search` (per-movie search with optional custom query), `GET /api/ebay/status`; `startPoller()` called on server listen
+- `src/utils/api.js` — `getEbayListings`, `getEbayListingsForMovie`, `triggerEbayPoll`, `searchEbayForMovie`, `getEbayStatus` (all server-only, no IPC path)
+- `src/components/AuctionCountdown.jsx` — live per-second countdown; colour-codes amber → orange → red+pulse as auction approaches
+- `src/pages/EbayDashboard.jsx` — grouped view of watched movies with listings; per-movie editable search query with per-movie re-search; listing cards with thumbnail, price, type badge, countdown, condition, seller, "View on eBay"; empty states; 30 s auto-refresh; "Refresh Now" triggers server poll
+- `src/App.jsx` — eBay page added to navigation (tag icon); red badge showing count of auctions ending within 1 hr; badge refreshes every 2 min; search bar hidden on eBay page
+- `src/pages/Settings.jsx` — Notifications section with ntfy topic field, placed between Jellyfin and Export
+
 ## [Session 9] - 2026-03-30
 
 ### Added

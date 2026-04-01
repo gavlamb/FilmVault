@@ -1,9 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import SearchBar from './components/SearchBar'
 import MovieModal from './components/MovieModal'
 import CollectionModal from './components/CollectionModal'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
+import EbayDashboard from './pages/EbayDashboard'
+import { getEbayStatus } from './utils/api'
+
+function TagIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M7 7h.01M7 3H5a2 2 0 00-2 2v2.586a1 1 0 00.293.707l8.414 8.414a2 2 0 002.828 0l2.586-2.586a2 2 0 000-2.828L8.707 3.293A1 1 0 008 3H7z" />
+    </svg>
+  )
+}
 
 function GearIcon({ className }) {
   return (
@@ -17,13 +28,26 @@ function GearIcon({ className }) {
 }
 
 function App() {
-  const [page,               setPage]               = useState('library') // 'library' | 'settings'
+  const [page,               setPage]               = useState('library') // 'library' | 'ebay' | 'settings'
   const [selectedMovie,      setSelectedMovie]      = useState(null)
   const [selectedCollection, setSelectedCollection] = useState(null)
   const [libraryVersion,     setLibraryVersion]     = useState(0)
   const [searchQuery,        setSearchQuery]        = useState('')
   // Bump this when leaving Settings so SearchBar remounts and reloads the API key
   const [searchKey,          setSearchKey]          = useState(0)
+  // Badge: auctions ending in < 1 hr
+  const [urgentAuctions,     setUrgentAuctions]     = useState(0)
+
+  useEffect(() => {
+    function refreshBadge() {
+      getEbayStatus()
+        .then((s) => setUrgentAuctions(s?.urgentAuctionCount ?? 0))
+        .catch(() => {})
+    }
+    refreshBadge()
+    const id = setInterval(refreshBadge, 2 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
 
   function handleMovieSelect(movie) {
     console.log('[App] handleMovieSelect received:', movie?.title, movie?.tmdb_id)
@@ -38,15 +62,13 @@ function App() {
   function handleCollectionModalClose() { setSelectedCollection(null) }
   function handleSaved()                { setLibraryVersion((v) => v + 1) }
 
-  function toggleSettings() {
+  function goTo(target) {
     setPage((p) => {
-      if (p === 'settings') {
-        // Leaving settings — remount SearchBar so it picks up any new API key
+      if (p === 'settings' || target !== 'settings') {
         setSearchKey((k) => k + 1)
         setSearchQuery('')
-        return 'library'
       }
-      return 'settings'
+      return p === target ? 'library' : target
     })
   }
 
@@ -69,7 +91,7 @@ function App() {
           </div>
         </div>
 
-        {/* Search — hidden on settings page */}
+        {/* Search — library only */}
         <div className="flex flex-1 justify-center">
           {page === 'library' && (
             <SearchBar
@@ -81,10 +103,29 @@ function App() {
           )}
         </div>
 
-        {/* Settings icon */}
-        <div className="flex flex-shrink-0 items-center">
+        {/* Nav icons */}
+        <div className="flex flex-shrink-0 items-center gap-1">
+          {/* eBay Watch */}
           <button
-            onClick={toggleSettings}
+            onClick={() => goTo('ebay')}
+            title="eBay Watch"
+            className={`relative rounded-lg p-2 transition-colors ${
+              page === 'ebay'
+                ? 'bg-gray-800 text-indigo-400'
+                : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
+            }`}
+          >
+            <TagIcon className="h-4 w-4" />
+            {urgentAuctions > 0 && page !== 'ebay' && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                {urgentAuctions > 9 ? '9+' : urgentAuctions}
+              </span>
+            )}
+          </button>
+
+          {/* Settings */}
+          <button
+            onClick={() => goTo('settings')}
             title={page === 'settings' ? 'Back to Library' : 'Settings'}
             className={`rounded-lg p-2 transition-colors ${
               page === 'settings'
@@ -101,6 +142,8 @@ function App() {
       <main className="flex-1 p-6">
         {page === 'settings' ? (
           <Settings />
+        ) : page === 'ebay' ? (
+          <EbayDashboard />
         ) : (
           <Library
             onMovieClick={handleMovieSelect}

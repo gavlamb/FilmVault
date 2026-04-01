@@ -30,7 +30,7 @@ Dual-mode: Electron desktop app (Windows) or Express HTTP server (Ubuntu mini PC
 - **Windows dev**: Vite on port 3745, Electron loads `http://localhost:3745`.
 
 ## Current Status
-Sessions 1–9 complete. Full app working in both Electron and server modes.
+Sessions 1–11 complete. Full app working in both Electron and server modes. eBay UK integration live.
 
 ## Build Order
 1. ~~SQLite database schema~~ ✓
@@ -43,7 +43,7 @@ Sessions 1–9 complete. Full app working in both Electron and server modes.
 8. ~~Collections in search~~ ✓
 9. ~~Express server + dual-mode api.js~~ ✓
 10. ~~Library live search filter + IMDb ratings via OMDB~~ ✓
-11. eBay integration (Phase 2)
+11. ~~eBay UK integration — poller, dashboard, ntfy notifications~~ ✓
 
 ## Windows Process Management
 **NEVER use `kill`, `kill -9`, `pkill`, or any Unix process commands. This is Windows.**

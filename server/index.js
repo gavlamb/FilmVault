@@ -9,6 +9,8 @@ process.env.FILMVAULT_DATA = process.env.FILMVAULT_DATA
   || path.join(os.homedir(), '.filmvault')
 
 const db         = require('../electron/database')
+const { startPoller, triggerPoll, getStatus: getPollerStatus } = require('./services/poller')
+const { buildEbayQuery, getEbayToken, searchEbayUK }           = require('./services/ebay')
 const DATA_DIR   = process.env.FILMVAULT_DATA
 const POSTER_DIR = path.join(DATA_DIR, 'posters')
 
@@ -150,6 +152,84 @@ app.post('/api/jellyfin/sync', (_req, res) => {
   res.json({ ok: true, message: 'Use the Settings page to trigger a sync.' })
 })
 
+// ─── eBay ─────────────────────────────────────────────────────────────────────
+
+// All listings grouped by tmdb_id — includes the movie and the suggested query.
+app.get('/api/ebay/listings', (_req, res) => {
+  const movies   = db.getAllWatchedMovies()
+  const all      = db.getAllEbayListings()
+  const byMovie  = new Map(all.reduce((acc, l) => {
+    const key = l.tmdb_id
+    if (!acc.has(key)) acc.set(key, [])
+    acc.get(key).push(l)
+    return acc
+  }, new Map()))
+
+  const result = movies.map((movie) => {
+    const listings = (byMovie.get(movie.tmdb_id) || []).sort((a, b) => {
+      // Auctions ending soonest first, then FIXED_PRICE by price, then BEST_OFFER by price
+      const typeOrder = { AUCTION: 0, FIXED_PRICE: 1, BEST_OFFER: 2 }
+      const ta = typeOrder[a.listing_type] ?? 3
+      const tb = typeOrder[b.listing_type] ?? 3
+      if (ta !== tb) return ta - tb
+      if (ta === 0) {
+        // Both auctions — soonest end_time first
+        if (a.end_time && b.end_time) return new Date(a.end_time) - new Date(b.end_time)
+        return a.end_time ? -1 : 1
+      }
+      return (a.price ?? Infinity) - (b.price ?? Infinity)
+    })
+    return { movie, query: buildEbayQuery(movie), listings }
+  })
+
+  res.json(result)
+})
+
+// Listings for a single movie
+app.get('/api/ebay/listings/:tmdbId', (req, res) => {
+  res.json(db.getEbayListingsForMovie(Number(req.params.tmdbId)))
+})
+
+// Trigger manual poll
+app.post('/api/ebay/poll', (_req, res) => {
+  triggerPoll().catch((err) => console.error('[eBay poll] manual trigger failed:', err.message))
+  res.json({ ok: true, message: 'Poll triggered' })
+})
+
+// Trigger a per-movie search with an optional custom query
+app.post('/api/ebay/search', async (req, res) => {
+  const { tmdbId, query: customQuery } = req.body
+  if (!tmdbId) return res.status(400).json({ error: 'tmdbId required' })
+  const movie = db.getMovieById(Number(tmdbId))
+  if (!movie) return res.status(404).json({ error: 'Movie not found' })
+
+  try {
+    const appId  = db.getSetting('ebay_app_id')
+    const certId = db.getSetting('ebay_cert_id')
+    if (!appId || !certId) return res.status(503).json({ error: 'eBay credentials not configured' })
+
+    const token   = await getEbayToken(appId, certId)
+    const query   = customQuery || buildEbayQuery(movie)
+    const results = await searchEbayUK(query, token)
+
+    const currentIds = []
+    for (const item of results) {
+      db.upsertEbayListing({ ...item, tmdb_id: movie.tmdb_id })
+      currentIds.push(item.id)
+    }
+    db.deleteStaleListings(movie.tmdb_id, currentIds)
+
+    res.json({ query, listings: db.getEbayListingsForMovie(movie.tmdb_id) })
+  } catch (err) {
+    res.status(502).json({ error: err.message })
+  }
+})
+
+// Poller status — last/next poll times, counts
+app.get('/api/ebay/status', (_req, res) => {
+  res.json(getPollerStatus())
+})
+
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
 
 app.get('*', (_req, res) => {
@@ -159,4 +239,5 @@ app.get('*', (_req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`FilmVault server  →  http://0.0.0.0:${PORT}`)
   console.log(`Data directory    →  ${DATA_DIR}`)
+  startPoller()
 })

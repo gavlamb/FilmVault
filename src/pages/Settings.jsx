@@ -506,6 +506,57 @@ function JellyfinSection() {
   )
 }
 
+// ── Notifications section ─────────────────────────────────────────────────────
+
+function NotificationsSection() {
+  const [topic, setTopic]   = useState('')
+  const [saved, setSaved]   = useState(false)
+
+  useEffect(() => {
+    getSetting('ntfy_topic').then((v) => setTopic(v || ''))
+  }, [])
+
+  async function handleSave() {
+    await setSetting('ntfy_topic', topic)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <section className="space-y-5">
+      <div>
+        <SectionTitle>Notifications</SectionTitle>
+        <SectionDesc>Get push notifications on your iPhone when eBay auctions are ending soon.</SectionDesc>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-gray-300">ntfy Topic</label>
+        <p className="text-xs text-gray-500">
+          Install the <span className="text-gray-300">ntfy</span> app on your iPhone, then subscribe to this topic name.
+          Choose something unique — e.g. <span className="font-mono text-gray-400">filmvault-gavin-abc123</span>.
+          Notifications are sent to <span className="font-mono text-gray-400">ntfy.sh/{'{topic}'}</span>.
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="filmvault-your-unique-name"
+            className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+          />
+          <button
+            onClick={handleSave}
+            className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
+          >
+            Save
+          </button>
+          {saved && <SavedBadge />}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ── Export section ────────────────────────────────────────────────────────────
 
 function ExportSection() {
@@ -720,6 +771,8 @@ export default function Settings() {
       <ServerSection />
       <hr className="border-gray-800" />
       <JellyfinSection />
+      <hr className="border-gray-800" />
+      <NotificationsSection />
       <hr className="border-gray-800" />
       <ExportSection />
     </div>

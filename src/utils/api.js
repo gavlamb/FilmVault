@@ -134,6 +134,29 @@ export function getAllSettings() {
   return apiFetch('/api/settings')
 }
 
+// ─── eBay (server-only — no IPC path) ────────────────────────────────────────
+// eBay runs on the mini PC server. These always go via HTTP regardless of mode.
+
+export function getEbayListings() {
+  return apiFetch('/api/ebay/listings')
+}
+
+export function getEbayListingsForMovie(tmdbId) {
+  return apiFetch(`/api/ebay/listings/${tmdbId}`)
+}
+
+export function triggerEbayPoll() {
+  return apiFetch('/api/ebay/poll', { method: 'POST' })
+}
+
+export function searchEbayForMovie(tmdbId, query) {
+  return apiFetch('/api/ebay/search', { method: 'POST', body: { tmdbId, query } })
+}
+
+export function getEbayStatus() {
+  return apiFetch('/api/ebay/status')
+}
+
 // ─── File export (Electron-only features with browser fallbacks) ───────────────
 
 export async function showSaveDialog(options) {

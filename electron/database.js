@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   notifications_badge:   'true',
   server_url:            '',
   use_server:            'false',
+  ntfy_topic:            '',
 }
 
 function getDb() {
@@ -67,6 +68,25 @@ function initSchema() {
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS ebay_listings (
+      id             TEXT    PRIMARY KEY,
+      tmdb_id        INTEGER,
+      title          TEXT,
+      price          REAL,
+      currency       TEXT    DEFAULT 'GBP',
+      listing_type   TEXT,
+      condition      TEXT,
+      image_url      TEXT,
+      ebay_url       TEXT,
+      end_time       TEXT,
+      bid_count      INTEGER DEFAULT 0,
+      seller         TEXT,
+      last_updated   TEXT,
+      notified_1hr   INTEGER DEFAULT 0,
+      notified_15min INTEGER DEFAULT 0,
+      notified_5min  INTEGER DEFAULT 0
     );
   `)
 
@@ -248,6 +268,76 @@ function updateMovieTmdbData(oldTmdbId, newTmdbId, posterPath) {
   return getMovieById(newTmdbId)
 }
 
+// ─── eBay listings ────────────────────────────────────────────────────────────
+
+// Upsert preserves notification flags on existing rows so we don't re-notify.
+function upsertEbayListing(listing) {
+  getDb().prepare(`
+    INSERT INTO ebay_listings (
+      id, tmdb_id, title, price, currency, listing_type, condition,
+      image_url, ebay_url, end_time, bid_count, seller, last_updated,
+      notified_1hr, notified_15min, notified_5min
+    ) VALUES (
+      @id, @tmdb_id, @title, @price, @currency, @listing_type, @condition,
+      @image_url, @ebay_url, @end_time, @bid_count, @seller, @last_updated,
+      @notified_1hr, @notified_15min, @notified_5min
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      tmdb_id      = excluded.tmdb_id,
+      title        = excluded.title,
+      price        = excluded.price,
+      currency     = excluded.currency,
+      listing_type = excluded.listing_type,
+      condition    = excluded.condition,
+      image_url    = excluded.image_url,
+      ebay_url     = excluded.ebay_url,
+      end_time     = excluded.end_time,
+      bid_count    = excluded.bid_count,
+      seller       = excluded.seller,
+      last_updated = excluded.last_updated
+  `).run(listing)
+}
+
+function getEbayListingsForMovie(tmdbId) {
+  return getDb()
+    .prepare('SELECT * FROM ebay_listings WHERE tmdb_id = ? ORDER BY end_time ASC, price ASC')
+    .all(tmdbId)
+}
+
+function getAllEbayListings() {
+  return getDb()
+    .prepare('SELECT * FROM ebay_listings ORDER BY end_time ASC, price ASC')
+    .all()
+}
+
+function getAllWatchedMovies() {
+  return getDb()
+    .prepare("SELECT * FROM movies WHERE status = 'wanted' OR status = 'upgrade' ORDER BY title ASC")
+    .all()
+}
+
+function deleteStaleListings(tmdbId, currentIds) {
+  if (currentIds.length === 0) {
+    getDb().prepare('DELETE FROM ebay_listings WHERE tmdb_id = ?').run(tmdbId)
+    return
+  }
+  const placeholders = currentIds.map(() => '?').join(',')
+  getDb()
+    .prepare(`DELETE FROM ebay_listings WHERE tmdb_id = ? AND id NOT IN (${placeholders})`)
+    .run(tmdbId, ...currentIds)
+}
+
+function clearEbayListings(tmdbId) {
+  getDb().prepare('DELETE FROM ebay_listings WHERE tmdb_id = ?').run(tmdbId)
+}
+
+// level: '1hr' | '15min' | '5min'
+function markEbayListingNotified(id, level) {
+  const col = { '1hr': 'notified_1hr', '15min': 'notified_15min', '5min': 'notified_5min' }[level]
+  if (!col) return
+  getDb().prepare(`UPDATE ebay_listings SET ${col} = 1 WHERE id = ?`).run(id)
+}
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -270,4 +360,12 @@ module.exports = {
   getSetting,
   setSetting,
   getAllSettings,
+  // eBay
+  upsertEbayListing,
+  getEbayListingsForMovie,
+  getAllEbayListings,
+  getAllWatchedMovies,
+  deleteStaleListings,
+  clearEbayListings,
+  markEbayListingNotified,
 }
