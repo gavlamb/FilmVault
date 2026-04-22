@@ -193,21 +193,38 @@ function MultiSelectChip({ label, options, selected, onChange }) {
   )
 }
 
-// ─── Range chip ───────────────────────────────────────────────────────────────
+// ─── Dual-handle range chip ───────────────────────────────────────────────────
 
-function RangeChip({ label, suffix, mode, min, max, step, value, onChange }) {
+function RangeChip({ label, suffix, min, max, step, value, onChange }) {
   const [open, setOpen] = useState(false)
   const ref             = useRef(null)
   const close           = useCallback(() => setOpen(false), [])
   useDismissable(ref, close)
 
-  // "Inactive" means the slider is at the no-op end:
-  //   mode=min → value equal to `min` means no filter
-  //   mode=max → value equal to `max` means no filter
-  const noopValue = mode === 'max' ? max : min
-  const isActive  = value !== null && value !== undefined && value !== noopValue
-  const shown     = value !== null && value !== undefined ? value : noopValue
-  const compare   = mode === 'max' ? '≤' : '≥'
+  // value is [lo, hi] | null; null means no filter (full range)
+  const lo       = value ? value[0] : min
+  const hi       = value ? value[1] : max
+  const isActive = value !== null
+
+  function setLo(raw) {
+    const v = Math.min(Number(raw), hi - step)
+    const next = [v, hi]
+    onChange(next[0] === min && next[1] === max ? null : next)
+  }
+  function setHi(raw) {
+    const v = Math.max(Number(raw), lo + step)
+    const next = [lo, v]
+    onChange(next[0] === min && next[1] === max ? null : next)
+  }
+
+  // Track fill as CSS linear-gradient
+  const pctLo = ((lo - min) / (max - min)) * 100
+  const pctHi = ((hi - min) / (max - min)) * 100
+  const trackStyle = {
+    background: `linear-gradient(to right, #374151 ${pctLo}%, #6366f1 ${pctLo}%, #6366f1 ${pctHi}%, #374151 ${pctHi}%)`,
+  }
+
+  const rangeBase = 'range-thumb absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-runnable-track]:opacity-0 [&::-moz-range-track]:opacity-0'
 
   return (
     <div ref={ref} className="relative">
@@ -221,7 +238,7 @@ function RangeChip({ label, suffix, mode, min, max, step, value, onChange }) {
       >
         <span>
           {label}
-          {isActive && `: ${compare} ${shown}${suffix || ''}`}
+          {isActive && `: ${lo}${suffix || ''} – ${hi}${suffix || ''}`}
         </span>
         <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -230,26 +247,28 @@ function RangeChip({ label, suffix, mode, min, max, step, value, onChange }) {
 
       {open && (
         <div className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-gray-700 bg-gray-900 p-3 shadow-xl shadow-black/60">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-              {mode === 'max' ? 'Maximum' : 'Minimum'} {label}
-            </p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{label}</p>
             <span className="text-xs tabular-nums text-indigo-300">
-              {shown}{suffix || ''}
+              {lo}{suffix || ''} – {hi}{suffix || ''}
             </span>
           </div>
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={shown}
-            onChange={(e) => {
-              const v = Number(e.target.value)
-              onChange(v === noopValue ? null : v)
-            }}
-            className="w-full accent-indigo-500"
-          />
+
+          {/* Dual-handle slider */}
+          <div className="relative h-5 w-full">
+            <div className="pointer-events-none absolute top-1/2 h-1.5 w-full -translate-y-1/2 rounded-full" style={trackStyle} />
+            <input
+              type="range" min={min} max={max} step={step} value={lo}
+              onChange={(e) => setLo(e.target.value)}
+              className={rangeBase}
+            />
+            <input
+              type="range" min={min} max={max} step={step} value={hi}
+              onChange={(e) => setHi(e.target.value)}
+              className={rangeBase}
+            />
+          </div>
+
           <div className="mt-1 flex justify-between text-[10px] text-gray-600">
             <span>{min}{suffix || ''}</span>
             <span>{max}{suffix || ''}</span>
@@ -324,11 +343,11 @@ export default function LibraryControls({ movies, sort, filters, onSortChange, o
     filters.decades.length > 0   ||
     filters.directors.length > 0 ||
     filters.actors.length > 0    ||
-    filters.ratingMin !== null    ||
-    filters.runtimeMax !== null
+    filters.rating  !== null      ||
+    filters.runtime !== null
 
   function clearAll() {
-    onFiltersChange({ genres: [], decades: [], directors: [], actors: [], ratingMin: null, runtimeMax: null })
+    onFiltersChange({ genres: [], decades: [], directors: [], actors: [], rating: null, runtime: null })
   }
 
   function setFilter(key, value) {
@@ -368,22 +387,20 @@ export default function LibraryControls({ movies, sort, filters, onSortChange, o
       <RangeChip
         label="Rating"
         suffix=""
-        mode="min"
         min={0}
         max={10}
-        step={0.1}
-        value={filters.ratingMin}
-        onChange={(v) => setFilter('ratingMin', v)}
+        step={0.5}
+        value={filters.rating}
+        onChange={(v) => setFilter('rating', v)}
       />
       <RangeChip
         label="Runtime"
         suffix="m"
-        mode="max"
         min={0}
         max={300}
         step={15}
-        value={filters.runtimeMax}
-        onChange={(v) => setFilter('runtimeMax', v)}
+        value={filters.runtime}
+        onChange={(v) => setFilter('runtime', v)}
       />
 
       {hasActiveFilters && (

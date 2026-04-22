@@ -16,7 +16,7 @@ const STATUS_FILTERS = [
 const DEFAULT_SORT    = { field: 'date_added', direction: 'desc' }
 const DEFAULT_FILTERS = {
   genres: [], decades: [], directors: [], actors: [],
-  ratingMin: null, runtimeMax: null,
+  rating: null, runtime: null,
 }
 
 const STORAGE_KEY = 'filmvault_library_state'
@@ -32,9 +32,20 @@ function loadPersistedState() {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw)
+    const pf = parsed.filters || {}
+    // Sanitise: migrate old ratingMin/runtimeMax single-handle values; discard unknown shapes
+    const rating  = Array.isArray(pf.rating)  ? pf.rating  : null
+    const runtime = Array.isArray(pf.runtime) ? pf.runtime : null
     return {
-      sort:    { ...DEFAULT_SORT,    ...(parsed.sort    || {}) },
-      filters: { ...DEFAULT_FILTERS, ...(parsed.filters || {}) },
+      sort:    { ...DEFAULT_SORT,    ...(parsed.sort || {}) },
+      filters: {
+        genres:    Array.isArray(pf.genres)    ? pf.genres    : [],
+        decades:   Array.isArray(pf.decades)   ? pf.decades   : [],
+        directors: Array.isArray(pf.directors) ? pf.directors : [],
+        actors:    Array.isArray(pf.actors)    ? pf.actors    : [],
+        rating,
+        runtime,
+      },
     }
   } catch {
     return null
@@ -93,12 +104,12 @@ export default function Library({ onMovieClick, onEbayClick, refreshKey, searchQ
         const names = new Set(cast.map((c) => c.name))
         if (!filters.actors.some((a) => names.has(a))) return false
       }
-      if (filters.ratingMin !== null) {
-        const rating = parseFloat(m.omdb_rating)
-        if (isNaN(rating) || rating < filters.ratingMin) return false
+      if (filters.rating !== null) {
+        const r = parseFloat(m.omdb_rating)
+        if (isNaN(r) || r < filters.rating[0] || r > filters.rating[1]) return false
       }
-      if (filters.runtimeMax !== null) {
-        if (!m.runtime || m.runtime > filters.runtimeMax) return false
+      if (filters.runtime !== null) {
+        if (!m.runtime || m.runtime < filters.runtime[0] || m.runtime > filters.runtime[1]) return false
       }
       return true
     })
@@ -134,8 +145,8 @@ export default function Library({ onMovieClick, onEbayClick, refreshKey, searchQ
     filters.decades.length > 0   ||
     filters.directors.length > 0 ||
     filters.actors.length > 0    ||
-    filters.ratingMin !== null    ||
-    filters.runtimeMax !== null
+    filters.rating  !== null      ||
+    filters.runtime !== null
 
   return (
     <div className="flex flex-col gap-4">
