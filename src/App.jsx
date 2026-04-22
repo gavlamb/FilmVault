@@ -78,7 +78,7 @@ function App() {
     <div className="flex min-h-screen flex-col bg-gray-950 text-white">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="flex items-center gap-6 border-b border-gray-800/80 bg-gray-950/95 px-6 py-3 backdrop-blur">
+      <header className="sticky top-0 z-30 flex items-center gap-6 border-b border-gray-800/80 bg-gray-950/95 px-6 py-3 backdrop-blur">
         {/* Logo */}
         <div className="flex flex-shrink-0 items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">

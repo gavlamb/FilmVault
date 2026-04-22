@@ -1,48 +1,153 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import MovieGrid from '../components/MovieGrid'
+import LibraryControls from '../components/LibraryControls'
 import { getAllMovies } from '../utils/api'
 
-const FILTERS = [
-  { value: 'all',       label: 'All' },
-  { value: 'wanted',    label: 'Wanted' },
-  { value: 'upgrade',   label: 'Upgrade' },
-  { value: '4k_bluray', label: '4K Blu-ray' },
-  { value: 'bluray',    label: 'Blu-ray' },
-  { value: 'dvd',       label: 'DVD' },
-  { value: 'digital',   label: 'Digital' },
+const STATUS_FILTERS = [
+  { value: 'all',       label: 'All'       },
+  { value: 'wanted',    label: 'Wanted'    },
+  { value: 'upgrade',   label: 'Upgrade'   },
+  { value: '4k_bluray', label: '4K Blu-ray'},
+  { value: 'bluray',    label: 'Blu-ray'   },
+  { value: 'dvd',       label: 'DVD'       },
+  { value: 'digital',   label: 'Digital'   },
 ]
 
+const DEFAULT_SORT    = { field: 'date_added', direction: 'desc' }
+const DEFAULT_FILTERS = {
+  genres: [], decades: [], directors: [], actors: [],
+  ratingMin: null, runtimeMax: null,
+}
+
+const STORAGE_KEY = 'filmvault_library_state'
+
+function safeParse(json, fallback) {
+  if (!json) return fallback
+  if (typeof json !== 'string') return json
+  try { return JSON.parse(json) } catch { return fallback }
+}
+
+function loadPersistedState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return {
+      sort:    { ...DEFAULT_SORT,    ...(parsed.sort    || {}) },
+      filters: { ...DEFAULT_FILTERS, ...(parsed.filters || {}) },
+    }
+  } catch {
+    return null
+  }
+}
+
+function savePersistedState(state) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) } catch {}
+}
+
 export default function Library({ onMovieClick, onEbayClick, refreshKey, searchQuery = '' }) {
-  const [movies,        setMovies]        = useState([])
-  const [activeFilter,  setActiveFilter]  = useState('all')
+  const [movies,       setMovies]       = useState([])
+  const [activeStatus, setActiveStatus] = useState('all')
+
+  const persisted = loadPersistedState()
+  const [sort,    setSort]    = useState(persisted?.sort    || DEFAULT_SORT)
+  const [filters, setFilters] = useState(persisted?.filters || DEFAULT_FILTERS)
 
   useEffect(() => {
     getAllMovies().then(setMovies)
   }, [refreshKey])
 
-  // Count per status (before text filter so counts stay stable while typing)
-  const counts = movies.reduce((acc, m) => {
+  useEffect(() => {
+    savePersistedState({ sort, filters })
+  }, [sort, filters])
+
+  // Status counts from unfiltered set so they stay stable while other filters change
+  const statusCounts = movies.reduce((acc, m) => {
     acc[m.status] = (acc[m.status] || 0) + 1
     return acc
   }, {})
 
+  // Apply status + text search
   const trimmed = searchQuery.trim().toLowerCase()
-
-  const filtered = (activeFilter === 'all' ? movies : movies.filter((m) => m.status === activeFilter))
+  const afterStatusAndSearch = (activeStatus === 'all' ? movies : movies.filter((m) => m.status === activeStatus))
     .filter((m) => !trimmed || m.title.toLowerCase().includes(trimmed))
+
+  // Apply advanced filters (AND between categories, OR within a category)
+  const filtered = useMemo(() => {
+    return afterStatusAndSearch.filter((m) => {
+      if (filters.genres.length > 0) {
+        const movieGenres = safeParse(m.genres, [])
+        if (!filters.genres.some((g) => movieGenres.includes(g))) return false
+      }
+      if (filters.decades.length > 0) {
+        if (!m.year) return false
+        const decade = Math.floor(m.year / 10) * 10
+        if (!filters.decades.includes(decade)) return false
+      }
+      if (filters.directors.length > 0) {
+        const d = safeParse(m.director, null)
+        if (!d?.name || !filters.directors.includes(d.name)) return false
+      }
+      if (filters.actors.length > 0) {
+        const cast = safeParse(m.cast_json, [])
+        const names = new Set(cast.map((c) => c.name))
+        if (!filters.actors.some((a) => names.has(a))) return false
+      }
+      if (filters.ratingMin !== null) {
+        const rating = parseFloat(m.omdb_rating)
+        if (isNaN(rating) || rating < filters.ratingMin) return false
+      }
+      if (filters.runtimeMax !== null) {
+        if (!m.runtime || m.runtime > filters.runtimeMax) return false
+      }
+      return true
+    })
+  }, [afterStatusAndSearch, filters])
+
+  // Apply sort — nulls always sink to the bottom regardless of direction
+  const sorted = useMemo(() => {
+    const arr = [...filtered]
+    const { field, direction } = sort
+    const dir = direction === 'desc' ? -1 : 1
+
+    arr.sort((a, b) => {
+      let av = a[field]
+      let bv = b[field]
+
+      if (field === 'omdb_rating') {
+        av = parseFloat(av); bv = parseFloat(bv)
+        if (isNaN(av)) av = -Infinity
+        if (isNaN(bv)) bv = -Infinity
+      }
+
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      if (typeof av === 'string') return av.localeCompare(bv) * dir
+      return (av - bv) * dir
+    })
+    return arr
+  }, [filtered, sort])
+
+  const hasActiveSecondaryFilter =
+    filters.genres.length > 0    ||
+    filters.decades.length > 0   ||
+    filters.directors.length > 0 ||
+    filters.actors.length > 0    ||
+    filters.ratingMin !== null    ||
+    filters.runtimeMax !== null
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Filter bar */}
+      {/* Status filter bar */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {FILTERS.map((f) => {
-          const count = f.value === 'all' ? movies.length : (counts[f.value] || 0)
-          const isActive = activeFilter === f.value
-
+        {STATUS_FILTERS.map((f) => {
+          const count    = f.value === 'all' ? movies.length : (statusCounts[f.value] || 0)
+          const isActive = activeStatus === f.value
           return (
             <button
               key={f.value}
-              onClick={() => setActiveFilter(f.value)}
+              onClick={() => setActiveStatus(f.value)}
               className={`
                 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
                 ${isActive
@@ -62,12 +167,21 @@ export default function Library({ onMovieClick, onEbayClick, refreshKey, searchQ
         })}
       </div>
 
+      {/* Sort + advanced filters */}
+      <LibraryControls
+        movies={movies}
+        sort={sort}
+        filters={filters}
+        onSortChange={setSort}
+        onFiltersChange={setFilters}
+      />
+
       {/* Grid */}
       <MovieGrid
-        movies={filtered}
+        movies={sorted}
         onMovieClick={onMovieClick}
         onEbayClick={onEbayClick}
-        hasFilter={activeFilter !== 'all' || !!trimmed}
+        hasFilter={activeStatus !== 'all' || !!trimmed || hasActiveSecondaryFilter}
       />
     </div>
   )
