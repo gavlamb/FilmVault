@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Movies
   getAllMovies:      ()              => ipcRenderer.invoke('db:getAllMovies'),
   getMovieById:     (tmdbId)        => ipcRenderer.invoke('db:getMovieById', tmdbId),
+  getMoviesRatings: (tmdbIds)       => ipcRenderer.invoke('db:getMoviesRatings', tmdbIds),
   addMovie:         (movie)         => ipcRenderer.invoke('db:addMovie', movie),
   updateMovie:      (tmdbId, movie) => ipcRenderer.invoke('db:updateMovie', tmdbId, movie),
   deleteMovie:      (tmdbId)        => ipcRenderer.invoke('db:deleteMovie', tmdbId),

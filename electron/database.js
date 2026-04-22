@@ -156,6 +156,19 @@ function getMovieById(tmdbId) {
     .get(tmdbId)
 }
 
+// Returns a map of { [tmdb_id]: { omdb_rating, omdb_votes } } for the given ids.
+// Only movies already in the library will have entries.
+function getMoviesRatings(tmdbIds) {
+  if (!tmdbIds || tmdbIds.length === 0) return {}
+  const placeholders = tmdbIds.map(() => '?').join(',')
+  const rows = getDb()
+    .prepare(`SELECT tmdb_id, omdb_rating, omdb_votes FROM movies WHERE tmdb_id IN (${placeholders})`)
+    .all(...tmdbIds)
+  const map = {}
+  for (const row of rows) map[row.tmdb_id] = { omdb_rating: row.omdb_rating, omdb_votes: row.omdb_votes }
+  return map
+}
+
 function addMovie(movie) {
   getDb().prepare(`
     INSERT INTO movies (
@@ -407,6 +420,7 @@ module.exports = {
   // Movies
   getAllMovies,
   getMovieById,
+  getMoviesRatings,
   addMovie,
   updateMovie,
   deleteMovie,

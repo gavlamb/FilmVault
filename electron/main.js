@@ -53,6 +53,7 @@ function createWindow() {
 // ─── IPC: Movies ──────────────────────────────────────────────────────────────
 ipcMain.handle('db:getAllMovies',       ()              => db.getAllMovies())
 ipcMain.handle('db:getMovieById',       (_e, tmdbId)    => db.getMovieById(tmdbId))
+ipcMain.handle('db:getMoviesRatings',   (_e, tmdbIds)   => db.getMoviesRatings(tmdbIds))
 ipcMain.handle('db:addMovie',           (_e, movie)     => db.addMovie(movie))
 ipcMain.handle('db:updateMovie',        (_e, id, movie) => db.updateMovie(id, movie))
 ipcMain.handle('db:deleteMovie',        (_e, tmdbId)    => db.deleteMovie(tmdbId))

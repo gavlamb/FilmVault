@@ -631,17 +631,30 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
 
       setLoadingExtras(true)
       try {
-        const tmdbKey = await getSetting('tmdb_api_key')
+        const [tmdbKey, omdbKey] = await Promise.all([
+          getSetting('tmdb_api_key'),
+          getSetting('omdb_api_key'),
+        ])
         if (!tmdbKey) return
         const full = await getFullMovieDetails(movie.tmdb_id, tmdbKey)
         if (cancelled) return
 
+        // For non-library movies fetch the OMDB rating on-demand (1 extra call).
+        // Library movies already have their rating stored in libraryEntry.
+        let liveRating = null
+        if (!libraryEntry && omdbKey && full.imdb_id) {
+          liveRating = await getIMDbRating(full.imdb_id, omdbKey).catch(() => null)
+        }
+
+        if (cancelled) return
         setExtras({
           backdrop_path: full.backdrop_path,
           tagline:       full.tagline,
           director:      safeParse(full.director, null),
           cast:          safeParse(full.cast_json, []),
           logo_path:     full.logo_path,
+          omdb_rating:   liveRating?.imdbRating ?? null,
+          omdb_votes:    liveRating?.imdbVotes  ?? null,
         })
 
         // Persist to DB only when movie is in library (no phantom rows)

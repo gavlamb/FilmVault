@@ -56,6 +56,11 @@ export function getMovieById(tmdbId) {
   return apiFetch(`/api/movies/${tmdbId}`).catch(() => null)
 }
 
+export function getMoviesRatings(tmdbIds) {
+  if (shouldUseIpc()) return window.electronAPI.getMoviesRatings(tmdbIds)
+  return apiFetch(`/api/movies/ratings?ids=${tmdbIds.join(',')}`)
+}
+
 export function addMovie(movie) {
   if (shouldUseIpc()) return window.electronAPI.addMovie(movie)
   return apiFetch('/api/movies', { method: 'POST', body: movie })

@@ -38,6 +38,11 @@ app.get('/api/movies/search', (req, res) => {
   res.json(db.searchMovies(req.query.q || ''))
 })
 
+app.get('/api/movies/ratings', (req, res) => {
+  const ids = (req.query.ids || '').split(',').map(Number).filter(Boolean)
+  res.json(db.getMoviesRatings(ids))
+})
+
 app.get('/api/movies/:id', (req, res) => {
   const movie = db.getMovieById(Number(req.params.id))
   movie ? res.json(movie) : res.status(404).json({ error: 'Not found' })
