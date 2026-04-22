@@ -181,24 +181,16 @@ function PersonChip({ person, roleLabel, roleClass, onClick }) {
   )
 }
 
-function CastRail({ director, cast, onPersonClick }) {
-  if (!director && !cast?.length) return null
+function CastRail({ cast, onPersonClick }) {
+  if (!cast?.length) return null
 
   return (
     <div className="space-y-3">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-        Cast & Crew
+        Cast
       </p>
       <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
-        {director && (
-          <PersonChip
-            person={director}
-            roleLabel="Director"
-            roleClass="text-indigo-400"
-            onClick={() => onPersonClick?.({ id: director.id, name: director.name })}
-          />
-        )}
-        {cast?.map((c) => (
+        {cast.map((c) => (
           <PersonChip
             key={c.id}
             person={{ id: c.id, name: c.name, profile: c.profile }}
@@ -216,7 +208,7 @@ function CastRail({ director, cast, onPersonClick }) {
 
 function Hero({ backdropPath, isLoadingExtras }) {
   return (
-    <div className="relative aspect-[16/7] w-full overflow-hidden bg-gray-900">
+    <div className="relative aspect-[21/9] w-full overflow-hidden bg-gray-900">
       {backdropPath ? (
         <img
           src={backdropPath}
@@ -611,10 +603,10 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 py-10 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
       onMouseDown={(e) => { if (e.target === backdropRef.current) onClose() }}
     >
-      <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-gray-800 bg-gray-950 shadow-2xl shadow-black/80">
+      <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-gray-800 bg-gray-950 shadow-2xl shadow-black/80">
 
         {/* Close button floats above hero */}
         <button
@@ -626,6 +618,9 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
+
+        {/* Scrollable content wrapper */}
+        <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
 
         {/* Cinematic hero */}
         <Hero backdropPath={display.backdrop_path} isLoadingExtras={loadingExtras} />
@@ -659,6 +654,17 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
               {display.tagline && (
                 <p className="text-sm italic text-gray-500">
                   {display.tagline}
+                </p>
+              )}
+              {extras?.director && (
+                <p className="text-sm text-gray-400">
+                  Directed by{' '}
+                  <button
+                    onClick={() => setActivePerson({ id: extras.director.id, name: extras.director.name })}
+                    className="font-medium text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
+                  >
+                    {extras.director.name}
+                  </button>
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-1 text-sm text-gray-400">
@@ -696,7 +702,6 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
         {extras && (
           <div className="border-t border-gray-800/60 px-6 py-5 sm:px-8">
             <CastRail
-              director={extras.director}
               cast={extras.cast}
               onPersonClick={setActivePerson}
             />
@@ -721,6 +726,8 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
             />
           )}
         </div>
+
+        </div>{/* end scrollable wrapper */}
       </div>
 
       {/* Filmography panel slides in on top when a person is clicked */}
