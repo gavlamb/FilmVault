@@ -213,47 +213,54 @@ export async function getFullMovieDetails(tmdbId, apiKey) {
 }
 
 // Fetches a person's movie credits for the filmography panel.
+// Returns separate cast_films (acting) and directed_films (directing only),
+// both sorted chronologically oldest→newest.
 export async function getPersonMovieCredits(personId, apiKey) {
   if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
 
-  const [personUrl, creditsUrl] = [
-    `${TMDB_BASE}/person/${personId}?language=en-US`,
-    `${TMDB_BASE}/person/${personId}/movie_credits?language=en-US`,
-  ]
   const [person, credits] = await Promise.all([
-    apiFetch(personUrl, apiKey),
-    apiFetch(creditsUrl, apiKey),
+    apiFetch(`${TMDB_BASE}/person/${personId}?language=en-US`, apiKey),
+    apiFetch(`${TMDB_BASE}/person/${personId}/movie_credits?language=en-US`, apiKey),
   ])
 
-  const byMovie = new Map()
-  for (const c of credits.cast || []) {
-    byMovie.set(c.id, { ...c, role: c.character, _kind: 'cast' })
-  }
-  for (const c of credits.crew || []) {
-    if (!byMovie.has(c.id)) byMovie.set(c.id, { ...c, role: c.job, _kind: 'crew' })
-  }
-
-  const films = [...byMovie.values()]
+  // All acting credits, chronological oldest → newest
+  const castFilms = (credits.cast || [])
     .filter((m) => m.release_date)
     .map((m) => ({
       tmdb_id:     m.id,
       title:       m.title,
       year:        parseInt(m.release_date.slice(0, 4), 10) || null,
       poster_path: posterUrl(m.poster_path),
-      role:        m.role,
+      role:        m.character || null,
       overview:    m.overview || '',
       popularity:  m.popularity || 0,
     }))
-    .sort((a, b) => (b.year || 0) - (a.year || 0))
+    .sort((a, b) => (a.year || 0) - (b.year || 0))
+
+  // Directing credits only — deduplicate by tmdb_id, chronological oldest → newest
+  const seen = new Set()
+  const directedFilms = (credits.crew || [])
+    .filter((m) => m.job === 'Director' && m.release_date && !seen.has(m.id) && seen.add(m.id))
+    .map((m) => ({
+      tmdb_id:     m.id,
+      title:       m.title,
+      year:        parseInt(m.release_date.slice(0, 4), 10) || null,
+      poster_path: posterUrl(m.poster_path),
+      role:        null,
+      overview:    m.overview || '',
+      popularity:  m.popularity || 0,
+    }))
+    .sort((a, b) => (a.year || 0) - (b.year || 0))
 
   return {
-    id:         person.id,
-    name:       person.name,
-    profile:    profileUrl(person.profile_path),
-    biography:  person.biography || '',
-    birthday:   person.birthday || null,
-    place:      person.place_of_birth || null,
-    known_for:  person.known_for_department || null,
-    films,
+    id:             person.id,
+    name:           person.name,
+    profile:        profileUrl(person.profile_path),
+    biography:      person.biography || '',
+    birthday:       person.birthday || null,
+    place:          person.place_of_birth || null,
+    known_for:      person.known_for_department || null,
+    cast_films:     castFilms,
+    directed_films: directedFilms,
   }
 }

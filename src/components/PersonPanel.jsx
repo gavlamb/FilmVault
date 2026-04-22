@@ -97,11 +97,8 @@ export default function PersonPanel({ person, onClose, onMovieClick }) {
     }
   }
 
-  // Sort films: most popular first for the featured grid, then full list by year desc
-  const films = data?.films || []
-  const featured = [...films]
-    .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-    .slice(0, 12)
+  const isDirector = data?.known_for === 'Directing'
+  const films = isDirector ? (data?.directed_films || []) : (data?.cast_films || [])
 
   return (
     <div
@@ -183,7 +180,7 @@ export default function PersonPanel({ person, onClose, onMovieClick }) {
         <div className="border-t border-gray-800/60 px-6 py-5 sm:px-8">
           <div className="mb-3 flex items-baseline justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-              Filmography
+              {isDirector ? 'Directed' : 'Acting Credits'}
             </p>
             {films.length > 0 && (
               <p className="text-[11px] text-gray-600">
@@ -196,11 +193,11 @@ export default function PersonPanel({ person, onClose, onMovieClick }) {
             <div className="flex justify-center py-12">
               <Spinner />
             </div>
-          ) : featured.length === 0 ? (
+          ) : films.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-600">No films found</p>
           ) : (
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-              {featured.map((film) => (
+              {films.map((film) => (
                 <FilmCard
                   key={`${film.tmdb_id}-${film.role}`}
                   film={film}
