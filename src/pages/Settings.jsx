@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import {
   getSetting, setSetting, getAllMovies, getMoviesByStatus,
-  updateMovie, addMovie, updateMovieTmdbData,
+  updateMovie, addMovie, updateMovieTmdbData, updateMovieRating,
   showSaveDialog, writeFile,
 } from '../utils/api'
+import { getMovieDetails } from '../utils/tmdb'
+import { getIMDbRating } from '../utils/omdb'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -352,7 +354,7 @@ function JellyfinSection() {
                                : null,
               overview:      item.Overview || null,
             })
-            newlyAdded.push({ tmdb_id: syntheticId, title: item.Name, year: item.ProductionYear || null })
+            newlyAdded.push({ tmdb_id: syntheticId, jellyfin_id: item.Id, title: item.Name, year: item.ProductionYear || null })
             added++
           } catch {
             alreadyExisted++
@@ -381,6 +383,7 @@ function JellyfinSection() {
               await updateMovieTmdbData(
                 newlyAdded[i].tmdb_id, result.tmdb_id, result.poster_path
               )
+              newlyAdded[i].tmdb_id = result.tmdb_id  // track real ID for ratings phase
               postersFetched++
             }
           }
@@ -388,6 +391,46 @@ function JellyfinSection() {
             type: 'success',
             msg:  `Sync complete: ${added} added, ${alreadyExisted} already in library · ${postersFetched} posters fetched`,
           })
+
+          // ── Phase 3: fetch IMDb ratings for newly added movies ────────────
+          const omdbKey = await getSetting('omdb_api_key')
+          if (omdbKey) {
+            let ratingsDone   = 0
+            let ratingsHalted = false
+
+            for (let i = 0; i < newlyAdded.length; i++) {
+              if (ratingsHalted) break
+              const m = newlyAdded[i]
+              // Skip movies still on synthetic IDs (poster fetch couldn't match them)
+              if (m.tmdb_id <= 0) continue
+
+              if (i % 5 === 0) {
+                setSyncStatus({ type: 'progress', msg: `Fetching IMDb ratings… ${i + 1}/${newlyAdded.length}` })
+              }
+              try {
+                const details = await getMovieDetails(m.tmdb_id, tmdbKey)
+                if (details?.imdb_id) {
+                  const rating = await getIMDbRating(details.imdb_id, omdbKey)
+                  if (rating) {
+                    await updateMovieRating(m.tmdb_id, rating.imdbRating, rating.imdbVotes)
+                    ratingsDone++
+                  }
+                }
+              } catch (err) {
+                if (/limit/i.test(err.message || '')) {
+                  ratingsHalted = true
+                  console.warn('[Jellyfin sync] OMDB daily limit hit — ratings backfill will catch up later')
+                }
+              }
+              await new Promise((r) => setTimeout(r, 200))
+            }
+
+            setSyncStatus({
+              type: 'success',
+              msg:  `Sync complete: ${added} added, ${alreadyExisted} already in library · ${postersFetched} posters · ${ratingsDone} ratings` +
+                    (ratingsHalted ? ' (OMDB limit reached, rest will backfill)' : ''),
+            })
+          }
         }
       }
     } catch (err) {

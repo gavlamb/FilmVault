@@ -34,6 +34,47 @@ function pickBestLogo(logos) {
   return sorted[0] || null
 }
 
+// ─── OMDB ─────────────────────────────────────────────────────────────────────
+
+async function fetchImdbRating(imdbId, omdbKey) {
+  if (!imdbId || !omdbKey) return null
+
+  const data = await new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'www.omdbapi.com',
+        path:     `/?i=${encodeURIComponent(imdbId)}&apikey=${encodeURIComponent(omdbKey)}`,
+        method:   'GET',
+      },
+      (res) => {
+        let raw = ''
+        res.on('data', (c) => { raw += c })
+        res.on('end', () => {
+          try { resolve(JSON.parse(raw)) } catch { reject(new Error('OMDB bad JSON')) }
+        })
+      }
+    )
+    req.on('error', reject)
+    req.end()
+  })
+
+  // Surface the daily-limit error explicitly so we can halt
+  if (data.Response === 'False') {
+    if (/limit/i.test(data.Error || '')) {
+      throw new Error(`OMDB_LIMIT: ${data.Error}`)
+    }
+    // Genuine "not found" — return null, don't throw
+    return null
+  }
+
+  return {
+    imdbRating: data.imdbRating && data.imdbRating !== 'N/A' ? data.imdbRating : null,
+    imdbVotes:  data.imdbVotes  && data.imdbVotes  !== 'N/A' ? data.imdbVotes  : null,
+  }
+}
+
+// ─── TMDB ─────────────────────────────────────────────────────────────────────
+
 function httpsGet(path, apiKey) {
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -86,6 +127,7 @@ async function fetchFullMetadata(tmdbId, apiKey) {
     logo_path:     bestLogo ? `${BACKDROP_BASE}${bestLogo.file_path}` : null,
     genres:        JSON.stringify((data.genres || []).map((g) => g.name)),
     runtime:       data.runtime || null,
+    imdb_id:       data.imdb_id || null,
   }
 }
 
@@ -94,40 +136,94 @@ function sleep(ms) {
 }
 
 async function runBackfill() {
-  const apiKey = db.getSetting('tmdb_api_key')
-  if (!apiKey) {
+  const tmdbKey = db.getSetting('tmdb_api_key')
+  const omdbKey = db.getSetting('omdb_api_key')
+
+  if (!tmdbKey) {
     console.log('[Metadata backfill] No TMDB API key — skipping')
     return
   }
+  if (!omdbKey) {
+    console.log('[Metadata backfill] No OMDB API key — will backfill metadata only (ratings skipped)')
+  }
 
   const allMovies = db.getAllMovies()
-  const pending   = allMovies.filter((m) => !m.metadata_fetched_at)
+  const pending   = allMovies.filter((m) =>
+    !m.metadata_fetched_at || (omdbKey && !m.omdb_rating && m.tmdb_id > 0)
+  )
 
   if (pending.length === 0) {
-    console.log('[Metadata backfill] Nothing to do — all movies cached')
+    console.log('[Metadata backfill] Nothing to do — all movies fully cached')
     return
   }
 
-  console.log(`[Metadata backfill] Backfilling ${pending.length} movie(s)…`)
-  let done = 0
-  let failed = 0
+  console.log(`[Metadata backfill] Processing ${pending.length} movie(s)…`)
+  let metadataDone = 0
+  let ratingDone   = 0
+  let failed       = 0
+  let omdbHalted   = false
 
   for (const movie of pending) {
-    try {
-      const metadata = await fetchFullMetadata(movie.tmdb_id, apiKey)
-      db.updateMovieMetadata(movie.tmdb_id, metadata)
-      done++
-      if (done % 10 === 0) {
-        console.log(`[Metadata backfill]   ${done}/${pending.length} done…`)
+    // Skip synthetic-ID rows (Jellyfin movies not yet TMDB-matched)
+    if (movie.tmdb_id <= 0) continue
+
+    let full = null
+
+    // ── Metadata pass (only if missing) ──────────────────────────────────────
+    if (!movie.metadata_fetched_at) {
+      try {
+        full = await fetchFullMetadata(movie.tmdb_id, tmdbKey)
+        db.updateMovieMetadata(movie.tmdb_id, full)
+        metadataDone++
+      } catch (err) {
+        failed++
+        console.error(`[Metadata backfill]   Metadata failed "${movie.title}" (${movie.tmdb_id}): ${err.message}`)
+        await sleep(250)
+        continue
       }
-    } catch (err) {
-      failed++
-      console.error(`[Metadata backfill]   Failed "${movie.title}" (${movie.tmdb_id}): ${err.message}`)
+      await sleep(250)
     }
-    await sleep(250)  // polite: ~4 req/sec
+
+    // ── Rating pass (only if missing and OMDB available) ──────────────────────
+    if (omdbKey && !movie.omdb_rating && !omdbHalted) {
+      try {
+        // Reuse imdb_id from the metadata fetch if we just did one; otherwise fetch fresh
+        let imdbId = full?.imdb_id
+        if (!imdbId) {
+          const fresh = await fetchFullMetadata(movie.tmdb_id, tmdbKey)
+          imdbId = fresh.imdb_id
+          await sleep(250)
+        }
+
+        if (imdbId) {
+          const rating = await fetchImdbRating(imdbId, omdbKey)
+          if (rating) {
+            db.updateMovieRating(movie.tmdb_id, rating.imdbRating, rating.imdbVotes)
+            ratingDone++
+          }
+        }
+      } catch (err) {
+        if (err.message.startsWith('OMDB_LIMIT')) {
+          omdbHalted = true
+          console.error('[Metadata backfill]   OMDB daily limit reached — halting rating pass. Metadata pass continues.')
+        } else {
+          failed++
+          console.error(`[Metadata backfill]   Rating failed "${movie.title}" (${movie.tmdb_id}): ${err.message}`)
+        }
+      }
+      await sleep(250)
+    }
+
+    const total = metadataDone + ratingDone
+    if (total > 0 && total % 10 === 0) {
+      console.log(`[Metadata backfill]   Progress — metadata ${metadataDone}, ratings ${ratingDone}, failed ${failed}`)
+    }
   }
 
-  console.log(`[Metadata backfill] Complete — ${done} succeeded, ${failed} failed`)
+  console.log(
+    `[Metadata backfill] Complete — metadata: ${metadataDone}, ratings: ${ratingDone}, failed: ${failed}` +
+    (omdbHalted ? ' (OMDB halted early due to rate limit)' : '')
+  )
 }
 
 // Start backfill 15s after server boot to avoid blocking startup
