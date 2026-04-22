@@ -103,10 +103,11 @@ export default function PersonPanel({ person, onClose, onMovieClick }) {
   return (
     <div
       ref={panelRef}
-      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/85 p-4 py-10 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-[60] overflow-y-auto bg-black/85 backdrop-blur-sm"
       onMouseDown={(e) => { if (e.target === panelRef.current) onClose() }}
     >
-      <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-gray-800 bg-gray-950 shadow-2xl shadow-black/80">
+      <div className="flex min-h-full items-start justify-center p-4 py-8">
+      <div className="relative w-full max-w-4xl rounded-2xl border border-gray-800 bg-gray-950 shadow-2xl shadow-black/80">
 
         {/* Close */}
         <button
@@ -163,7 +164,7 @@ export default function PersonPanel({ person, onClose, onMovieClick }) {
             </div>
 
             {data?.biography && (
-              <p className="line-clamp-5 text-sm leading-relaxed text-gray-300">
+              <p className="text-sm leading-relaxed text-gray-300">
                 {data.biography}
               </p>
             )}
@@ -207,6 +208,7 @@ export default function PersonPanel({ person, onClose, onMovieClick }) {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
