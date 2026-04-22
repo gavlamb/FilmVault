@@ -10,6 +10,7 @@ process.env.FILMVAULT_DATA = process.env.FILMVAULT_DATA
 
 const db         = require('../electron/database')
 const { startPoller, triggerPoll, getStatus: getPollerStatus } = require('./services/poller')
+const { startBackfill, runBackfill }                           = require('./services/metadataBackfill')
 const { buildEbayQuery, getEbayToken, searchEbayUK }           = require('./services/ebay')
 const DATA_DIR   = process.env.FILMVAULT_DATA
 const POSTER_DIR = path.join(DATA_DIR, 'posters')
@@ -236,6 +237,14 @@ app.get('/api/ebay/status', (_req, res) => {
   res.json(getPollerStatus())
 })
 
+// ─── Metadata ─────────────────────────────────────────────────────────────────
+
+// Manual trigger — re-runs the backfill for any movies still missing metadata
+app.post('/api/metadata/backfill', (_req, res) => {
+  runBackfill().catch((err) => console.error('[metadata backfill] manual trigger failed:', err.message))
+  res.json({ ok: true, message: 'Backfill started in background' })
+})
+
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
 
 app.get('*', (_req, res) => {
@@ -246,4 +255,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`FilmVault server  →  http://0.0.0.0:${PORT}`)
   console.log(`Data directory    →  ${DATA_DIR}`)
   startPoller()
+  startBackfill()
 })

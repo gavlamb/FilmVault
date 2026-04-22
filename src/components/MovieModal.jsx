@@ -316,6 +316,7 @@ function AddSection({ movie, onAdded }) {
       })
       setAdded(true)
       fetchAndStoreRating(movie.tmdb_id).catch(() => {})
+      fetchAndStoreMetadata(movie.tmdb_id).catch(() => {})
       setTimeout(() => onAdded(), 900)
     } finally {
       setSaving(false)
@@ -333,6 +334,21 @@ function AddSection({ movie, onAdded }) {
     const rating = await getIMDbRating(details.imdb_id, omdbKey)
     if (!rating) return
     await updateMovieRating(tmdbId, rating.imdbRating, rating.imdbVotes)
+  }
+
+  async function fetchAndStoreMetadata(tmdbId) {
+    const tmdbKey = await getSetting('tmdb_api_key')
+    if (!tmdbKey) return
+    const full = await getFullMovieDetails(tmdbId, tmdbKey)
+    await updateMovieMetadata(tmdbId, {
+      backdrop_path: full.backdrop_path,
+      tagline:       full.tagline,
+      director:      full.director,
+      cast_json:     full.cast_json,
+      logo_path:     full.logo_path,
+      genres:        full.genres,
+      runtime:       full.runtime,
+    })
   }
 
   const showUpgradeToggle = selectedFormat && UPGRADE_ELIGIBLE.has(selectedFormat) && !upgradeWanted
@@ -715,95 +731,110 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
         {/* Scrollable content wrapper */}
         <div className="flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 
-        {/* Cinematic hero */}
-        <Hero
-          backdropPath={display.backdrop_path}
-          posterPath={getPosterUrl(display.poster_path)}
-          isLoadingExtras={loadingExtras}
-        />
+          {/* Rich content — faded in once extras are ready */}
+          <div className={`transition-opacity duration-200 ${extras ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
 
-        {/* Centred content block — no poster */}
-        <div className="relative z-10 flex flex-col items-center gap-4 px-6 pb-6 pt-5 text-center sm:px-10 sm:pb-8">
-          <div className="space-y-2">
-            <TitleLogo src={display.logo_path} fallbackTitle={display.title} />
+            {/* Cinematic hero */}
+            <Hero
+              backdropPath={display.backdrop_path}
+              posterPath={getPosterUrl(display.poster_path)}
+              isLoadingExtras={loadingExtras}
+            />
 
-            {display.tagline && (
-              <p className="text-sm italic text-gray-500">
-                {display.tagline}
-              </p>
-            )}
+            {/* Centred content block — no poster */}
+            <div className="relative z-10 flex flex-col items-center gap-4 px-6 pb-6 pt-5 text-center sm:px-10 sm:pb-8">
+              <div className="space-y-2">
+                <TitleLogo src={display.logo_path} fallbackTitle={display.title} />
 
-            {extras?.director && (
-              <p className="text-sm text-gray-400">
-                Directed by{' '}
-                <button
-                  onClick={() => setActivePerson({ id: extras.director.id, name: extras.director.name })}
-                  className="font-medium text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
-                >
-                  {extras.director.name}
-                </button>
-              </p>
-            )}
+                {display.tagline && (
+                  <p className="text-sm italic text-gray-500">
+                    {display.tagline}
+                  </p>
+                )}
 
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 pt-1 text-sm text-gray-400">
-              {display.year && <span>{display.year}</span>}
-              {runtimeStr && (
-                <>
-                  <span className="text-gray-700">•</span>
-                  <span>{runtimeStr}</span>
-                </>
+                {extras?.director && (
+                  <p className="text-sm text-gray-400">
+                    Directed by{' '}
+                    <button
+                      onClick={() => setActivePerson({ id: extras.director.id, name: extras.director.name })}
+                      className="font-medium text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
+                    >
+                      {extras.director.name}
+                    </button>
+                  </p>
+                )}
+
+                <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 pt-1 text-sm text-gray-400">
+                  {display.year && <span>{display.year}</span>}
+                  {runtimeStr && (
+                    <>
+                      <span className="text-gray-700">•</span>
+                      <span>{runtimeStr}</span>
+                    </>
+                  )}
+                  {display.omdb_rating && (
+                    <>
+                      <span className="text-gray-700">•</span>
+                      <ImdbPill rating={display.omdb_rating} votes={display.omdb_votes} size="lg" />
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {genreList.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {genreList.map((g) => <GenreChip key={g} name={g} />)}
+                </div>
               )}
-              {display.omdb_rating && (
-                <>
-                  <span className="text-gray-700">•</span>
-                  <ImdbPill rating={display.omdb_rating} votes={display.omdb_votes} size="lg" />
-                </>
+
+              {display.overview && (
+                <p className="max-w-2xl text-sm leading-relaxed text-gray-300">
+                  {display.overview}
+                </p>
               )}
             </div>
-          </div>
 
-          {genreList.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {genreList.map((g) => <GenreChip key={g} name={g} />)}
+            {/* Cast rail */}
+            {extras && (
+              <div className="border-t border-gray-800/60 px-6 py-5 sm:px-8">
+                <CastRail
+                  cast={extras.cast}
+                  onPersonClick={setActivePerson}
+                  onViewAll={() => setShowFullCast(true)}
+                />
+              </div>
+            )}
+
+            {/* Action section */}
+            <div className="border-t border-gray-800/60 bg-gray-950 px-6 py-5 sm:px-8">
+              {isLoading ? (
+                <div className="text-sm text-gray-600">Loading…</div>
+              ) : inLibrary ? (
+                <EditSection
+                  movie={display}
+                  libraryEntry={libraryEntry}
+                  onSaved={onSaved}
+                  onClose={onClose}
+                />
+              ) : (
+                <AddSection
+                  movie={movie}
+                  onAdded={handleAdded}
+                />
+              )}
+            </div>
+
+          </div>{/* end rich content */}
+
+          {/* Scrim — shown while waiting for metadata */}
+          {!extras && (
+            <div className="flex min-h-[400px] items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-700 border-t-indigo-400" />
+                <p className="text-xs text-gray-500">Loading…</p>
+              </div>
             </div>
           )}
-
-          {display.overview && (
-            <p className="max-w-2xl text-sm leading-relaxed text-gray-300">
-              {display.overview}
-            </p>
-          )}
-        </div>
-
-        {/* Cast rail */}
-        {extras && (
-          <div className="border-t border-gray-800/60 px-6 py-5 sm:px-8">
-            <CastRail
-              cast={extras.cast}
-              onPersonClick={setActivePerson}
-              onViewAll={() => setShowFullCast(true)}
-            />
-          </div>
-        )}
-
-        {/* Action section */}
-        <div className="border-t border-gray-800/60 bg-gray-950 px-6 py-5 sm:px-8">
-          {isLoading ? (
-            <div className="text-sm text-gray-600">Loading…</div>
-          ) : inLibrary ? (
-            <EditSection
-              movie={display}
-              libraryEntry={libraryEntry}
-              onSaved={onSaved}
-              onClose={onClose}
-            />
-          ) : (
-            <AddSection
-              movie={movie}
-              onAdded={handleAdded}
-            />
-          )}
-        </div>
 
         </div>{/* end scrollable wrapper */}
       </div>
