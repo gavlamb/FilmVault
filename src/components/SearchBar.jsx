@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { searchMovies as searchTmdb, searchCollections } from '../utils/tmdb'
+import { searchMovies as searchTmdb, searchCollections, searchPeople } from '../utils/tmdb'
 import StatusBadge from './StatusBadge'
 import { getSetting, searchMovies as searchLibrary } from '../utils/api'
 import { getPosterUrl } from '../utils/posterUrl'
@@ -37,11 +37,12 @@ function SectionLabel({ children }) {
   )
 }
 
-export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryChange }) {
+export default function SearchBar({ onMovieSelect, onCollectionSelect, onPersonSelect, onQueryChange }) {
   const [query,          setQuery]          = useState('')
   const [libraryResults, setLibraryResults] = useState([])
   const [results,        setResults]        = useState([])
   const [collections,    setCollections]    = useState([])
+  const [people,         setPeople]         = useState([])
   const [isLoading,      setIsLoading]      = useState(false)
   const [isOpen,         setIsOpen]         = useState(false)
   const [apiKey,         setApiKey]         = useState(null)   // null = not yet loaded
@@ -72,6 +73,7 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryCh
       setResults([])
       setCollections([])
       setLibraryResults([])
+      setPeople([])
       setIsOpen(false)
       setError(null)
       return
@@ -94,16 +96,18 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryCh
       ? Promise.all([
           searchTmdb(debouncedQuery, apiKey),
           searchCollections(debouncedQuery, apiKey),
-        ]).catch((err) => { tmdbErr = err; return [[], []] })
-      : Promise.resolve([[], []])
+          searchPeople(debouncedQuery, apiKey),
+        ]).catch((err) => { tmdbErr = err; return [[], [], []] })
+      : Promise.resolve([[], [], []])
 
     Promise.all([libPromise, tmdbPromise])
-      .then(([libResults, [movies, cols]]) => {
+      .then(([libResults, [movies, cols, persons]]) => {
         if (cancelled) return
         const libIds = new Set(libResults.map((m) => m.tmdb_id))
         setLibraryResults(libResults)
         setResults(movies.filter((m) => !libIds.has(m.tmdb_id)).slice(0, 6))
         setCollections(cols)
+        setPeople(persons)
         setIsLoading(false)
         if (tmdbErr) {
           if (tmdbErr.message === 'INVALID_API_KEY') {
@@ -143,30 +147,35 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryCh
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [])
 
-  function handleSelect(movie) {
+  function clearSearch() {
     setIsOpen(false)
     setQuery('')
     setResults([])
     setLibraryResults([])
     setCollections([])
+    setPeople([])
     onQueryChange?.('')
-    onMovieSelect(movie)
     inputRef.current?.blur()
   }
 
+  function handleSelect(movie) {
+    clearSearch()
+    onMovieSelect(movie)
+  }
+
   function handleCollectionSelect(col) {
-    setIsOpen(false)
-    setQuery('')
-    setResults([])
-    setLibraryResults([])
-    setCollections([])
-    onQueryChange?.('')
+    clearSearch()
     onCollectionSelect(col)
-    inputRef.current?.blur()
+  }
+
+  function handlePersonSelect(person) {
+    clearSearch()
+    onPersonSelect?.(person)
   }
 
   const showDropdown = isOpen && query.trim().length > 0
   const hasLibrary   = libraryResults.length > 0
+  const hasPeople    = people.length > 0
   const hasTmdb      = results.length > 0 || collections.length > 0
 
   const dropdown = showDropdown && dropdownRect && createPortal(
@@ -217,14 +226,14 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryCh
         )}
 
         {/* No results at all */}
-        {!isLoading && !error && !hasLibrary && !hasTmdb && debouncedQuery.trim() && (
+        {!isLoading && !error && !hasLibrary && !hasPeople && !hasTmdb && debouncedQuery.trim() && (
           <div className="px-4 py-3.5 text-sm text-gray-500">
             No results for <span className="text-gray-300">"{debouncedQuery}"</span>
           </div>
         )}
 
         {/* Results */}
-        {!isLoading && (hasLibrary || hasTmdb) && (
+        {!isLoading && (hasLibrary || hasPeople || hasTmdb) && (
           <ul className="max-h-[480px] overflow-y-auto">
 
             {/* ── In Your Library ─────────────────────────────────────── */}
@@ -256,15 +265,56 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryCh
               </>
             )}
 
-            {/* Divider between sections */}
-            {hasLibrary && hasTmdb && (
+            {/* ── People ──────────────────────────────────────────────── */}
+            {hasPeople && (
+              <>
+                {hasLibrary && <div className="border-t border-gray-700/60" />}
+                <SectionLabel>People</SectionLabel>
+                {people.map((person) => (
+                  <li
+                    key={`person-${person.id}`}
+                    onMouseDown={() => handlePersonSelect(person)}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-800/70 cursor-pointer transition-colors group"
+                  >
+                    {/* Headshot */}
+                    <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-gray-800 border border-gray-700/60">
+                      {person.profile ? (
+                        <img src={person.profile} alt={person.name} className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-gray-500">
+                          {person.name.split(/\s+/).slice(0, 2).map((n) => n[0]).join('').toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white group-hover:text-indigo-200 transition-colors">
+                        {person.name}
+                      </p>
+                      {person.known_for_titles.length > 0 && (
+                        <p className="truncate text-xs text-gray-500 mt-0.5">
+                          {person.known_for_titles.join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                    {person.known_for && (
+                      <span className="flex-shrink-0 text-[10px] font-medium text-gray-600">
+                        {person.known_for}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </>
+            )}
+
+            {/* Divider between people/library and TMDB movies */}
+            {(hasLibrary || hasPeople) && hasTmdb && (
               <div className="border-t border-gray-700/60" />
             )}
 
             {/* ── From TMDB ───────────────────────────────────────────── */}
             {hasTmdb && (
               <>
-                {hasLibrary && <SectionLabel>From TMDB</SectionLabel>}
+                {(hasLibrary || hasPeople) && <SectionLabel>From TMDB</SectionLabel>}
 
                 {/* Collections */}
                 {collections.map((col) => (
@@ -320,7 +370,7 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryCh
         )}
 
         {/* Footer attribution */}
-        {hasTmdb && (
+        {(hasTmdb || hasPeople) && (
           <div className="border-t border-gray-800 px-3 py-1.5 text-right">
             <span className="text-[10px] text-gray-600">Powered by TMDB</span>
           </div>
@@ -363,14 +413,7 @@ export default function SearchBar({ onMovieSelect, onCollectionSelect, onQueryCh
             <Spinner />
           ) : query.length > 0 ? (
             <button
-              onClick={() => {
-                setQuery('')
-                setResults([])
-                setLibraryResults([])
-                setIsOpen(false)
-                onQueryChange?.('')
-                inputRef.current?.focus()
-              }}
+              onClick={() => { clearSearch(); inputRef.current?.focus() }}
               className="text-gray-600 hover:text-gray-400 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

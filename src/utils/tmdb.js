@@ -125,6 +125,21 @@ export async function getCollectionDetails(collectionId, apiKey) {
   }
 }
 
+export async function searchPeople(query, apiKey) {
+  if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
+  if (!query.trim()) return []
+
+  const url  = `${TMDB_BASE}/search/person?query=${encodeURIComponent(query.trim())}&language=en-US&page=1`
+  const data = await apiFetch(url, apiKey)
+  return (data.results || []).slice(0, 4).map((p) => ({
+    id:               p.id,
+    name:             p.name,
+    profile:          profileUrl(p.profile_path),
+    known_for:        p.known_for_department || null,
+    known_for_titles: (p.known_for || []).slice(0, 2).map((m) => m.title || m.name).filter(Boolean),
+  }))
+}
+
 export async function getMovieDetails(tmdbId, apiKey) {
   if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
 

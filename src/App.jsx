@@ -6,6 +6,7 @@ import Library from './pages/Library'
 import Settings from './pages/Settings'
 import EbayDashboard from './pages/EbayDashboard'
 import EbaySlidePanel from './components/EbaySlidePanel'
+import PersonPanel from './components/PersonPanel'
 import { getEbayStatus } from './utils/api'
 
 function TagIcon({ className }) {
@@ -39,6 +40,7 @@ function App() {
   // Badge: auctions ending in < 1 hr
   const [urgentAuctions,     setUrgentAuctions]     = useState(0)
   const [selectedEbayMovie,  setSelectedEbayMovie]  = useState(null)
+  const [selectedPerson,     setSelectedPerson]     = useState(null)
 
   useEffect(() => {
     function refreshBadge() {
@@ -100,6 +102,7 @@ function App() {
               key={searchKey}
               onMovieSelect={handleMovieSelect}
               onCollectionSelect={handleCollectionSelect}
+              onPersonSelect={setSelectedPerson}
               onQueryChange={setSearchQuery}
             />
           )}
@@ -171,6 +174,26 @@ function App() {
         <EbaySlidePanel
           movie={selectedEbayMovie}
           onClose={() => setSelectedEbayMovie(null)}
+        />
+      )}
+
+      {/* ── Person Panel (from search) ───────────────────────────────────── */}
+      {selectedPerson && !selectedMovie && (
+        <PersonPanel
+          person={selectedPerson}
+          onClose={() => setSelectedPerson(null)}
+          onMovieClick={(film) => {
+            setSelectedPerson(null)
+            handleMovieSelect({
+              tmdb_id:     film.tmdb_id,
+              title:       film.title,
+              year:        film.year,
+              poster_path: film.poster_path,
+              overview:    film.overview || '',
+              genres:      '[]',
+              runtime:     null,
+            })
+          }}
         />
       )}
 
