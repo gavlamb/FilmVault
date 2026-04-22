@@ -144,7 +144,6 @@ export async function getFullMovieDetails(tmdbId, apiKey) {
   const director = (data.credits?.crew || [])
     .find((c) => c.job === 'Director')
   const cast = (data.credits?.cast || [])
-    .slice(0, 10)
     .map((c) => ({
       id:        c.id,
       name:      c.name,

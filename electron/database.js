@@ -109,6 +109,16 @@ function initSchema() {
     }
   })
   seedDefaults(DEFAULT_SETTINGS)
+
+  // One-off migration: invalidate old cast caches so they re-fetch with full cast list
+  const migrationKey = 'full_cast_migration_v1'
+  const alreadyRun = db.prepare('SELECT value FROM settings WHERE key = ?').get(migrationKey)
+  if (!alreadyRun) {
+    try {
+      db.exec("UPDATE movies SET metadata_fetched_at = NULL")
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(migrationKey, 'done')
+    } catch {}
+  }
 }
 
 // ─── Movies ───────────────────────────────────────────────────────────────────

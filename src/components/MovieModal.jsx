@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import StatusBadge from './StatusBadge'
 import PersonPanel from './PersonPanel'
+import FullCastModal from './FullCastModal'
 import { getPosterUrl } from '../utils/posterUrl'
 import {
   getMovieById,
@@ -181,14 +182,24 @@ function PersonChip({ person, roleLabel, roleClass, onClick }) {
   )
 }
 
-function CastRail({ cast, onPersonClick }) {
+function CastRail({ cast, onPersonClick, onViewAll }) {
   if (!cast?.length) return null
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-        Cast
-      </p>
+      <div className="flex items-baseline justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          Cast
+        </p>
+        {cast.length > 6 && onViewAll && (
+          <button
+            onClick={onViewAll}
+            className="text-[11px] font-medium text-indigo-400 transition-colors hover:text-indigo-300"
+          >
+            View all {cast.length}
+          </button>
+        )}
+      </div>
       {/* Relative wrapper hosts the fade gradient */}
       <div className="relative">
         <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -497,6 +508,7 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
   const [extras,        setExtras]        = useState(null)        // TMDB enrichment data
   const [loadingExtras, setLoadingExtras] = useState(false)
   const [activePerson,  setActivePerson]  = useState(null)        // { id, name } when viewing filmography
+  const [showFullCast,  setShowFullCast]  = useState(false)
   const backdropRef = useRef(null)
 
   // Load library entry for the selected movie
@@ -563,14 +575,14 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
     return () => { cancelled = true }
   }, [movie?.tmdb_id, libraryEntry])
 
-  // Esc closes — defer to person panel when it's open
+  // Esc closes — defer to person panel or full cast modal when open
   useEffect(() => {
     function onKey(e) {
-      if (e.key === 'Escape' && !activePerson) onClose()
+      if (e.key === 'Escape' && !activePerson && !showFullCast) onClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose, activePerson])
+  }, [onClose, activePerson, showFullCast])
 
   // Merge: live extras win over cached; cached (libraryEntry) wins over base movie
   const display = {
@@ -709,6 +721,7 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
             <CastRail
               cast={extras.cast}
               onPersonClick={setActivePerson}
+              onViewAll={() => setShowFullCast(true)}
             />
           </div>
         )}
@@ -734,6 +747,19 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
 
         </div>{/* end scrollable wrapper */}
       </div>
+
+      {/* Full cast modal */}
+      {showFullCast && extras?.cast && (
+        <FullCastModal
+          cast={extras.cast}
+          movieTitle={display.title}
+          onClose={() => setShowFullCast(false)}
+          onPersonClick={(person) => {
+            setShowFullCast(false)
+            setActivePerson(person)
+          }}
+        />
+      )}
 
       {/* Filmography panel slides in on top when a person is clicked */}
       {activePerson && (
