@@ -224,22 +224,30 @@ function CastRail({ cast, onPersonClick, onViewAll }) {
 
 function Hero({ backdropPath, posterPath, isLoadingExtras }) {
   const heroImage = backdropPath || posterPath
+  const [imgLoaded, setImgLoaded] = useState(false)
+
+  // Reset loaded state when source changes
+  useEffect(() => {
+    setImgLoaded(false)
+  }, [heroImage])
 
   return (
     <div className="relative aspect-[21/9] w-full overflow-hidden bg-gray-900">
-      {heroImage ? (
+      {/* Persistent fallback gradient — always behind the image */}
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-800 via-gray-900 to-black" />
+
+      {heroImage && (
         <>
-          {/* Main image — blurred/dimmed poster when no backdrop */}
           <img
             src={heroImage}
             alt=""
-            className={`absolute inset-0 h-full w-full object-cover ${
-              !backdropPath ? 'scale-110 blur-2xl opacity-60' : ''
-            }`}
+            onLoad={() => setImgLoaded(true)}
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+              imgLoaded ? 'opacity-100' : 'opacity-0'
+            } ${!backdropPath ? 'scale-110 blur-2xl' : ''}`}
             loading="eager"
           />
-          {/* When using poster fallback, composite the poster centred on top */}
-          {!backdropPath && posterPath && (
+          {!backdropPath && posterPath && imgLoaded && (
             <div className="absolute inset-0 flex items-center justify-center">
               <img
                 src={posterPath}
@@ -249,11 +257,9 @@ function Hero({ backdropPath, posterPath, isLoadingExtras }) {
             </div>
           )}
         </>
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-800 via-gray-900 to-black" />
       )}
 
-      {/* Gradient for legibility and to blend into content below */}
+      {/* Gradient for legibility */}
       <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/70 to-gray-950/10" />
       <div className="absolute inset-0 bg-gradient-to-r from-gray-950/60 via-transparent to-gray-950/40" />
 
@@ -521,9 +527,56 @@ function EditSection({ movie, libraryEntry, onSaved, onClose }) {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 
+// Seed extras synchronously from the movie prop when it already has cached metadata.
+// This avoids a flash of empty hero/title when opening movies from the library grid.
+function seedExtrasFrom(m) {
+  if (!m?.metadata_fetched_at) return null
+  return {
+    backdrop_path: m.backdrop_path,
+    tagline:       m.tagline,
+    director:      safeParse(m.director, null),
+    cast:          safeParse(m.cast_json, []),
+    logo_path:     m.logo_path,
+  }
+}
+
+function TitleLogo({ src, fallbackTitle }) {
+  const [loaded,  setLoaded]  = useState(false)
+  const [errored, setErrored] = useState(false)
+
+  useEffect(() => { setLoaded(false); setErrored(false) }, [src])
+
+  if (errored || !src) {
+    return (
+      <h2 className="text-2xl font-bold leading-tight text-white sm:text-3xl">
+        {fallbackTitle}
+      </h2>
+    )
+  }
+
+  return (
+    <>
+      <img
+        src={src}
+        alt={fallbackTitle}
+        onLoad={() => setLoaded(true)}
+        onError={() => setErrored(true)}
+        className={`mx-auto max-h-20 w-auto max-w-full object-contain drop-shadow-lg transition-opacity duration-300 sm:max-h-28 ${
+          loaded ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+      {!loaded && (
+        <h2 className="text-2xl font-bold leading-tight text-white opacity-0 sm:text-3xl">
+          {fallbackTitle}
+        </h2>
+      )}
+    </>
+  )
+}
+
 export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
-  const [libraryEntry,  setLibraryEntry]  = useState(undefined)   // undefined = loading
-  const [extras,        setExtras]        = useState(null)        // TMDB enrichment data
+  const [libraryEntry,  setLibraryEntry]  = useState(() => undefined)
+  const [extras,        setExtras]        = useState(() => seedExtrasFrom(movie))
   const [loadingExtras, setLoadingExtras] = useState(false)
   const [activePerson,  setActivePerson]  = useState(null)        // { id, name } when viewing filmography
   const [showFullCast,  setShowFullCast]  = useState(false)
@@ -533,6 +586,7 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
   useEffect(() => {
     if (!movie) return
     setLibraryEntry(undefined)
+    setExtras(seedExtrasFrom(movie))   // re-seed on movie change
     getMovieById(movie.tmdb_id).then((entry) => {
       setLibraryEntry(entry || null)
     })
@@ -541,7 +595,6 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
   // Load TMDB extras: prefer cached DB fields, fetch otherwise.
   useEffect(() => {
     if (!movie || libraryEntry === undefined) return
-    setExtras(null)
 
     let cancelled = false
     async function load() {
@@ -672,23 +725,7 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
         {/* Centred content block — no poster */}
         <div className="relative z-10 flex flex-col items-center gap-4 px-6 pb-6 pt-5 text-center sm:px-10 sm:pb-8">
           <div className="space-y-2">
-            {display.logo_path ? (
-              <img
-                src={display.logo_path}
-                alt={display.title}
-                className="mx-auto max-h-20 w-auto max-w-full object-contain drop-shadow-lg sm:max-h-28"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none'
-                  e.currentTarget.nextElementSibling?.style.setProperty('display', 'block')
-                }}
-              />
-            ) : null}
-            <h2
-              className="text-2xl font-bold leading-tight text-white sm:text-3xl"
-              style={display.logo_path ? { display: 'none' } : undefined}
-            >
-              {display.title}
-            </h2>
+            <TitleLogo src={display.logo_path} fallbackTitle={display.title} />
 
             {display.tagline && (
               <p className="text-sm italic text-gray-500">
