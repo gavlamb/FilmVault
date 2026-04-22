@@ -194,27 +194,20 @@ function MultiSelectChip({ label, options, selected, onChange }) {
 }
 
 // ─── Range chip ───────────────────────────────────────────────────────────────
-// mode='min' (default): filters ≥ value. Active when value > min.
-// mode='max':           filters ≤ value. Active when value < max.
-// In both cases value=null means "inactive / no filter applied".
 
-function RangeChip({ label, suffix = '', min, max, step, value, onChange, mode = 'min' }) {
+function RangeChip({ label, suffix, mode, min, max, step, value, onChange }) {
   const [open, setOpen] = useState(false)
   const ref             = useRef(null)
   const close           = useCallback(() => setOpen(false), [])
   useDismissable(ref, close)
 
-  const isActive     = value !== null
-  const displayValue = value !== null ? value : (mode === 'min' ? min : max)
-  const prefix       = mode === 'min' ? '≥' : '≤'
-
-  function handleSlider(raw) {
-    const v = Number(raw)
-    // When the slider is at its "no-filter" end, emit null
-    if (mode === 'min' && v === min) { onChange(null); return }
-    if (mode === 'max' && v === max) { onChange(null); return }
-    onChange(v)
-  }
+  // "Inactive" means the slider is at the no-op end:
+  //   mode=min → value equal to `min` means no filter
+  //   mode=max → value equal to `max` means no filter
+  const noopValue = mode === 'max' ? max : min
+  const isActive  = value !== null && value !== undefined && value !== noopValue
+  const shown     = value !== null && value !== undefined ? value : noopValue
+  const compare   = mode === 'max' ? '≤' : '≥'
 
   return (
     <div ref={ref} className="relative">
@@ -228,7 +221,7 @@ function RangeChip({ label, suffix = '', min, max, step, value, onChange, mode =
       >
         <span>
           {label}
-          {isActive && `: ${prefix} ${displayValue}${suffix}`}
+          {isActive && `: ${compare} ${shown}${suffix || ''}`}
         </span>
         <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -239,10 +232,10 @@ function RangeChip({ label, suffix = '', min, max, step, value, onChange, mode =
         <div className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-gray-700 bg-gray-900 p-3 shadow-xl shadow-black/60">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-              {mode === 'min' ? 'Minimum' : 'Maximum'} {label}
+              {mode === 'max' ? 'Maximum' : 'Minimum'} {label}
             </p>
             <span className="text-xs tabular-nums text-indigo-300">
-              {displayValue}{suffix}
+              {shown}{suffix || ''}
             </span>
           </div>
           <input
@@ -250,13 +243,16 @@ function RangeChip({ label, suffix = '', min, max, step, value, onChange, mode =
             min={min}
             max={max}
             step={step}
-            value={displayValue}
-            onChange={(e) => handleSlider(e.target.value)}
+            value={shown}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              onChange(v === noopValue ? null : v)
+            }}
             className="w-full accent-indigo-500"
           />
           <div className="mt-1 flex justify-between text-[10px] text-gray-600">
-            <span>{min}{suffix}</span>
-            <span>{max}{suffix}</span>
+            <span>{min}{suffix || ''}</span>
+            <span>{max}{suffix || ''}</span>
           </div>
           {isActive && (
             <button
@@ -371,6 +367,8 @@ export default function LibraryControls({ movies, sort, filters, onSortChange, o
       />
       <RangeChip
         label="Rating"
+        suffix=""
+        mode="min"
         min={0}
         max={10}
         step={0.1}
@@ -378,9 +376,9 @@ export default function LibraryControls({ movies, sort, filters, onSortChange, o
         onChange={(v) => setFilter('ratingMin', v)}
       />
       <RangeChip
-        mode="max"
         label="Runtime"
         suffix="m"
+        mode="max"
         min={0}
         max={300}
         step={15}

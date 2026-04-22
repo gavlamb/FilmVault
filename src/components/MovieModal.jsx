@@ -222,24 +222,42 @@ function CastRail({ cast, onPersonClick, onViewAll }) {
 
 // ── Hero ──────────────────────────────────────────────────────────────────────
 
-function Hero({ backdropPath, isLoadingExtras }) {
+function Hero({ backdropPath, posterPath, isLoadingExtras }) {
+  const heroImage = backdropPath || posterPath
+
   return (
     <div className="relative aspect-[21/9] w-full overflow-hidden bg-gray-900">
-      {backdropPath ? (
-        <img
-          src={backdropPath}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover"
-          loading="eager"
-        />
+      {heroImage ? (
+        <>
+          {/* Main image — blurred/dimmed poster when no backdrop */}
+          <img
+            src={heroImage}
+            alt=""
+            className={`absolute inset-0 h-full w-full object-cover ${
+              !backdropPath ? 'scale-110 blur-2xl opacity-60' : ''
+            }`}
+            loading="eager"
+          />
+          {/* When using poster fallback, composite the poster centred on top */}
+          {!backdropPath && posterPath && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <img
+                src={posterPath}
+                alt=""
+                className="h-full max-h-full w-auto object-contain opacity-95 shadow-2xl"
+              />
+            </div>
+          )}
+        </>
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-gray-800 via-gray-900 to-black" />
       )}
+
       {/* Gradient for legibility and to blend into content below */}
       <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/70 to-gray-950/10" />
       <div className="absolute inset-0 bg-gradient-to-r from-gray-950/60 via-transparent to-gray-950/40" />
 
-      {!backdropPath && isLoadingExtras && (
+      {!heroImage && isLoadingExtras && (
         <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-white/5 to-transparent" />
       )}
     </div>
@@ -565,6 +583,8 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
             director:      full.director,
             cast_json:     full.cast_json,
             logo_path:     full.logo_path,
+            genres:        full.genres,
+            runtime:       full.runtime,
           }).catch(() => {})
         }
       } catch {
@@ -643,93 +663,79 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
         <div className="flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 
         {/* Cinematic hero */}
-        <Hero backdropPath={display.backdrop_path} isLoadingExtras={loadingExtras} />
+        <Hero
+          backdropPath={display.backdrop_path}
+          posterPath={getPosterUrl(display.poster_path)}
+          isLoadingExtras={loadingExtras}
+        />
 
-        {/* Poster overlaps hero edge */}
-        <div className="relative z-10 flex flex-col gap-6 px-6 pb-6 sm:flex-row sm:px-8 sm:pb-8">
-          <div className="-mt-28 flex-shrink-0 sm:-mt-36">
-            <div className="aspect-[2/3] w-44 overflow-hidden rounded-xl border border-gray-800 bg-gray-900 shadow-2xl shadow-black/60 sm:w-56">
-              {display.poster_path ? (
-                <img
-                  src={getPosterUrl(display.poster_path)}
-                  alt={display.title}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <svg className="h-10 w-10 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}
-                      d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-                  </svg>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Centred content block — no poster */}
+        <div className="relative z-10 flex flex-col items-center gap-4 px-6 pb-6 pt-5 text-center sm:px-10 sm:pb-8">
+          <div className="space-y-2">
+            {display.logo_path ? (
+              <img
+                src={display.logo_path}
+                alt={display.title}
+                className="mx-auto max-h-20 w-auto max-w-full object-contain drop-shadow-lg sm:max-h-28"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                  e.currentTarget.nextElementSibling?.style.setProperty('display', 'block')
+                }}
+              />
+            ) : null}
+            <h2
+              className="text-2xl font-bold leading-tight text-white sm:text-3xl"
+              style={display.logo_path ? { display: 'none' } : undefined}
+            >
+              {display.title}
+            </h2>
 
-          <div className="flex min-w-0 flex-1 flex-col gap-4 sm:pt-4">
-            <div className="space-y-1.5">
-              {display.logo_path ? (
-                <img
-                  src={display.logo_path}
-                  alt={display.title}
-                  className="max-h-20 w-auto max-w-full object-contain object-left drop-shadow-lg sm:max-h-24"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none'
-                    e.currentTarget.nextElementSibling?.style.setProperty('display', 'block')
-                  }}
-                />
-              ) : null}
-              <h2
-                className="text-2xl font-bold leading-tight text-white sm:text-3xl"
-                style={display.logo_path ? { display: 'none' } : undefined}
-              >
-                {display.title}
-              </h2>
-              {display.tagline && (
-                <p className="text-sm italic text-gray-500">
-                  {display.tagline}
-                </p>
-              )}
-              {extras?.director && (
-                <p className="text-sm text-gray-400">
-                  Directed by{' '}
-                  <button
-                    onClick={() => setActivePerson({ id: extras.director.id, name: extras.director.name })}
-                    className="font-medium text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
-                  >
-                    {extras.director.name}
-                  </button>
-                </p>
-              )}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-1 text-sm text-gray-400">
-                {display.year && <span>{display.year}</span>}
-                {runtimeStr && (
-                  <>
-                    <span className="text-gray-700">•</span>
-                    <span>{runtimeStr}</span>
-                  </>
-                )}
-                {display.omdb_rating && (
-                  <>
-                    <span className="text-gray-700">•</span>
-                    <ImdbPill rating={display.omdb_rating} votes={display.omdb_votes} size="lg" />
-                  </>
-                )}
-              </div>
-            </div>
-
-            {genreList.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {genreList.map((g) => <GenreChip key={g} name={g} />)}
-              </div>
-            )}
-
-            {display.overview && (
-              <p className="text-sm leading-relaxed text-gray-300">
-                {display.overview}
+            {display.tagline && (
+              <p className="text-sm italic text-gray-500">
+                {display.tagline}
               </p>
             )}
+
+            {extras?.director && (
+              <p className="text-sm text-gray-400">
+                Directed by{' '}
+                <button
+                  onClick={() => setActivePerson({ id: extras.director.id, name: extras.director.name })}
+                  className="font-medium text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
+                >
+                  {extras.director.name}
+                </button>
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 pt-1 text-sm text-gray-400">
+              {display.year && <span>{display.year}</span>}
+              {runtimeStr && (
+                <>
+                  <span className="text-gray-700">•</span>
+                  <span>{runtimeStr}</span>
+                </>
+              )}
+              {display.omdb_rating && (
+                <>
+                  <span className="text-gray-700">•</span>
+                  <ImdbPill rating={display.omdb_rating} votes={display.omdb_votes} size="lg" />
+                </>
+              )}
+            </div>
           </div>
+
+          {genreList.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {genreList.map((g) => <GenreChip key={g} name={g} />)}
+            </div>
+          )}
+
+          {display.overview && (
+            <p className="max-w-2xl text-sm leading-relaxed text-gray-300">
+              {display.overview}
+            </p>
+          )}
         </div>
 
         {/* Cast rail */}

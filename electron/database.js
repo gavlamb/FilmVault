@@ -130,6 +130,16 @@ function initSchema() {
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(logoMigrationKey, 'done')
     } catch {}
   }
+
+  // One-off migration: invalidate metadata for movies with missing genres so they re-fetch
+  const genresMigrationKey = 'genres_backfill_v1'
+  const genresAlreadyRun = db.prepare('SELECT value FROM settings WHERE key = ?').get(genresMigrationKey)
+  if (!genresAlreadyRun) {
+    try {
+      db.exec("UPDATE movies SET metadata_fetched_at = NULL WHERE genres IS NULL OR genres = '[]' OR genres = ''")
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(genresMigrationKey, 'done')
+    } catch {}
+  }
 }
 
 // ─── Movies ───────────────────────────────────────────────────────────────────
@@ -213,8 +223,9 @@ function updateMovieRating(tmdbId, imdbRating, imdbVotes) {
     .run(imdbRating ?? null, imdbVotes ?? null, tmdbId)
 }
 
-// Store enriched TMDB metadata (backdrop, tagline, director, cast, logo).
+// Store enriched TMDB metadata (backdrop, tagline, director, cast, logo, genres, runtime).
 // Called once per movie on first modal open; avoids re-fetching on subsequent opens.
+// COALESCE preserves existing genres/runtime if the new value is null.
 function updateMovieMetadata(tmdbId, metadata) {
   getDb().prepare(`
     UPDATE movies SET
@@ -223,6 +234,8 @@ function updateMovieMetadata(tmdbId, metadata) {
       director            = @director,
       cast_json           = @cast_json,
       logo_path           = @logo_path,
+      genres              = COALESCE(@genres, genres),
+      runtime             = COALESCE(@runtime, runtime),
       metadata_fetched_at = datetime('now')
     WHERE tmdb_id = @tmdb_id
   `).run({
@@ -232,6 +245,8 @@ function updateMovieMetadata(tmdbId, metadata) {
     director:      metadata.director      ?? null,
     cast_json:     metadata.cast_json     ?? null,
     logo_path:     metadata.logo_path     ?? null,
+    genres:        metadata.genres        ?? null,
+    runtime:       metadata.runtime       ?? null,
   })
 }
 
