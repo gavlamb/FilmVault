@@ -193,38 +193,27 @@ function MultiSelectChip({ label, options, selected, onChange }) {
   )
 }
 
-// ─── Dual-handle range chip ───────────────────────────────────────────────────
+// ─── Range chip ───────────────────────────────────────────────────────────────
 
 function RangeChip({ label, suffix, min, max, step, value, onChange }) {
   const [open, setOpen] = useState(false)
-  const ref             = useRef(null)
-  const close           = useCallback(() => setOpen(false), [])
-  useDismissable(ref, close)
+  const ref = useRef(null)
+  useDismissable(ref, () => setOpen(false))
 
-  // value is [lo, hi] | null; null means no filter (full range)
-  const lo       = value ? value[0] : min
-  const hi       = value ? value[1] : max
-  const isActive = value !== null
+  const activeLo = value ? value[0] : min
+  const activeHi = value ? value[1] : max
+  const isActive = value !== null && (activeLo !== min || activeHi !== max)
 
-  function setLo(raw) {
-    const v = Math.min(Number(raw), hi - step)
-    const next = [v, hi]
-    onChange(next[0] === min && next[1] === max ? null : next)
+  function commit(lo, hi) {
+    if (lo > hi) [lo, hi] = [hi, lo]
+    const clampedLo = Math.max(min, Math.min(lo, max))
+    const clampedHi = Math.max(min, Math.min(hi, max))
+    if (clampedLo === min && clampedHi === max) {
+      onChange(null)
+    } else {
+      onChange([clampedLo, clampedHi])
+    }
   }
-  function setHi(raw) {
-    const v = Math.max(Number(raw), lo + step)
-    const next = [lo, v]
-    onChange(next[0] === min && next[1] === max ? null : next)
-  }
-
-  // Track fill as CSS linear-gradient
-  const pctLo = ((lo - min) / (max - min)) * 100
-  const pctHi = ((hi - min) / (max - min)) * 100
-  const trackStyle = {
-    background: `linear-gradient(to right, #374151 ${pctLo}%, #6366f1 ${pctLo}%, #6366f1 ${pctHi}%, #374151 ${pctHi}%)`,
-  }
-
-  const rangeBase = 'range-thumb absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-runnable-track]:opacity-0 [&::-moz-range-track]:opacity-0'
 
   return (
     <div ref={ref} className="relative">
@@ -238,7 +227,7 @@ function RangeChip({ label, suffix, min, max, step, value, onChange }) {
       >
         <span>
           {label}
-          {isActive && `: ${lo}${suffix || ''} – ${hi}${suffix || ''}`}
+          {isActive && `: ${activeLo}${suffix || ''}–${activeHi}${suffix || ''}`}
         </span>
         <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -246,37 +235,58 @@ function RangeChip({ label, suffix, min, max, step, value, onChange }) {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-gray-700 bg-gray-900 p-3 shadow-xl shadow-black/60">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-            <span className="text-xs tabular-nums text-indigo-300">
-              {lo}{suffix || ''} – {hi}{suffix || ''}
-            </span>
+        <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border border-gray-700 bg-gray-900 p-4 shadow-xl shadow-black/60">
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            {label} range
+          </p>
+
+          {/* Minimum */}
+          <div className="mb-4">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11px] font-medium text-gray-400">Minimum</span>
+              <span className="text-xs tabular-nums text-indigo-300">
+                {activeLo}{suffix || ''}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={min}
+              max={max}
+              step={step}
+              value={activeLo}
+              onChange={(e) => commit(Number(e.target.value), activeHi)}
+              className="w-full accent-indigo-500"
+            />
           </div>
 
-          {/* Dual-handle slider */}
-          <div className="relative h-5 w-full">
-            <div className="pointer-events-none absolute top-1/2 h-1.5 w-full -translate-y-1/2 rounded-full" style={trackStyle} />
+          {/* Maximum */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11px] font-medium text-gray-400">Maximum</span>
+              <span className="text-xs tabular-nums text-indigo-300">
+                {activeHi}{suffix || ''}
+              </span>
+            </div>
             <input
-              type="range" min={min} max={max} step={step} value={lo}
-              onChange={(e) => setLo(e.target.value)}
-              className={rangeBase}
-            />
-            <input
-              type="range" min={min} max={max} step={step} value={hi}
-              onChange={(e) => setHi(e.target.value)}
-              className={rangeBase}
+              type="range"
+              min={min}
+              max={max}
+              step={step}
+              value={activeHi}
+              onChange={(e) => commit(activeLo, Number(e.target.value))}
+              className="w-full accent-indigo-500"
             />
           </div>
 
-          <div className="mt-1 flex justify-between text-[10px] text-gray-600">
+          <div className="mt-2 flex justify-between text-[10px] text-gray-600">
             <span>{min}{suffix || ''}</span>
             <span>{max}{suffix || ''}</span>
           </div>
+
           {isActive && (
             <button
               onClick={() => onChange(null)}
-              className="mt-2 w-full text-[11px] text-gray-500 transition-colors hover:text-gray-300"
+              className="mt-3 w-full rounded-md border border-gray-700 py-1 text-[11px] text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-200"
             >
               Clear
             </button>
