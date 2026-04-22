@@ -189,16 +189,21 @@ function CastRail({ cast, onPersonClick }) {
       <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
         Cast
       </p>
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
-        {cast.map((c) => (
-          <PersonChip
-            key={c.id}
-            person={{ id: c.id, name: c.name, profile: c.profile }}
-            roleLabel={c.character || ''}
-            roleClass="text-gray-500"
-            onClick={() => onPersonClick?.({ id: c.id, name: c.name })}
-          />
-        ))}
+      {/* Relative wrapper hosts the fade gradient */}
+      <div className="relative">
+        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {cast.map((c) => (
+            <PersonChip
+              key={c.id}
+              person={{ id: c.id, name: c.name, profile: c.profile }}
+              roleLabel={c.character || ''}
+              roleClass="text-gray-500"
+              onClick={() => onPersonClick?.({ id: c.id, name: c.name })}
+            />
+          ))}
+        </div>
+        {/* Right-edge fade to hint at scrollable content */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-gray-950 to-transparent" />
       </div>
     </div>
   )
@@ -620,7 +625,7 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
         </button>
 
         {/* Scrollable content wrapper */}
-        <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
+        <div className="flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 
         {/* Cinematic hero */}
         <Hero backdropPath={display.backdrop_path} isLoadingExtras={loadingExtras} />
