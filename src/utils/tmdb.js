@@ -1,8 +1,18 @@
-const TMDB_BASE  = 'https://api.themoviedb.org/3'
-const POSTER_BASE = 'https://image.tmdb.org/t/p/w500'
+const TMDB_BASE   = 'https://api.themoviedb.org/3'
+const POSTER_BASE  = 'https://image.tmdb.org/t/p/w500'
+const BACKDROP_BASE = 'https://image.tmdb.org/t/p/original'
+const PROFILE_BASE  = 'https://image.tmdb.org/t/p/w185'
 
 function posterUrl(path) {
   return path ? `${POSTER_BASE}${path}` : null
+}
+
+function profileUrl(path) {
+  return path ? `${PROFILE_BASE}${path}` : null
+}
+
+function backdropUrl(path) {
+  return path ? `${BACKDROP_BASE}${path}` : null
 }
 
 function mapSearchResult(movie) {
@@ -121,4 +131,83 @@ export async function getMovieDetails(tmdbId, apiKey) {
   const url  = `${TMDB_BASE}/movie/${tmdbId}?language=en-US`
   const data = await apiFetch(url, apiKey)
   return mapDetailResult(data)
+}
+
+// Fetches full metadata used by the detail modal — credits, backdrop, tagline.
+// Uses append_to_response to do it in one request.
+export async function getFullMovieDetails(tmdbId, apiKey) {
+  if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
+
+  const url  = `${TMDB_BASE}/movie/${tmdbId}?language=en-US&append_to_response=credits`
+  const data = await apiFetch(url, apiKey)
+
+  const director = (data.credits?.crew || [])
+    .find((c) => c.job === 'Director')
+  const cast = (data.credits?.cast || [])
+    .slice(0, 10)
+    .map((c) => ({
+      id:        c.id,
+      name:      c.name,
+      character: c.character,
+      profile:   profileUrl(c.profile_path),
+    }))
+
+  return {
+    backdrop_path: backdropUrl(data.backdrop_path),
+    tagline:       data.tagline || null,
+    director:      director
+      ? JSON.stringify({ id: director.id, name: director.name, profile: profileUrl(director.profile_path) })
+      : null,
+    cast_json:     JSON.stringify(cast),
+    genres:        JSON.stringify((data.genres || []).map((g) => g.name)),
+    runtime:       data.runtime || null,
+    overview:      data.overview || '',
+    imdb_id:       data.imdb_id || null,
+  }
+}
+
+// Fetches a person's movie credits for the filmography panel.
+export async function getPersonMovieCredits(personId, apiKey) {
+  if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
+
+  const [personUrl, creditsUrl] = [
+    `${TMDB_BASE}/person/${personId}?language=en-US`,
+    `${TMDB_BASE}/person/${personId}/movie_credits?language=en-US`,
+  ]
+  const [person, credits] = await Promise.all([
+    apiFetch(personUrl, apiKey),
+    apiFetch(creditsUrl, apiKey),
+  ])
+
+  const byMovie = new Map()
+  for (const c of credits.cast || []) {
+    byMovie.set(c.id, { ...c, role: c.character, _kind: 'cast' })
+  }
+  for (const c of credits.crew || []) {
+    if (!byMovie.has(c.id)) byMovie.set(c.id, { ...c, role: c.job, _kind: 'crew' })
+  }
+
+  const films = [...byMovie.values()]
+    .filter((m) => m.release_date)
+    .map((m) => ({
+      tmdb_id:     m.id,
+      title:       m.title,
+      year:        parseInt(m.release_date.slice(0, 4), 10) || null,
+      poster_path: posterUrl(m.poster_path),
+      role:        m.role,
+      overview:    m.overview || '',
+      popularity:  m.popularity || 0,
+    }))
+    .sort((a, b) => (b.year || 0) - (a.year || 0))
+
+  return {
+    id:         person.id,
+    name:       person.name,
+    profile:    profileUrl(person.profile_path),
+    biography:  person.biography || '',
+    birthday:   person.birthday || null,
+    place:      person.place_of_birth || null,
+    known_for:  person.known_for_department || null,
+    films,
+  }
 }

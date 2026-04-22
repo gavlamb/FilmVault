@@ -81,6 +81,12 @@ app.patch('/api/movies/:id/rating', (req, res) => {
   res.json({ ok: true })
 })
 
+// Store enriched TMDB metadata (backdrop, tagline, director, cast)
+app.patch('/api/movies/:id/metadata', (req, res) => {
+  db.updateMovieMetadata(Number(req.params.id), req.body || {})
+  res.json({ ok: true })
+})
+
 // ─── Collections ──────────────────────────────────────────────────────────────
 
 app.get('/api/collections', (_req, res) => {

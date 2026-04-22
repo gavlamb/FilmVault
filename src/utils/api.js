@@ -105,6 +105,11 @@ export function updateMoviePoster(tmdbId, posterPath) {
   return apiFetch(`/api/movies/${tmdbId}/poster`, { method: 'PATCH', body: { posterPath } })
 }
 
+export function updateMovieMetadata(tmdbId, metadata) {
+  if (shouldUseIpc()) return window.electronAPI.updateMovieMetadata(tmdbId, metadata)
+  return apiFetch(`/api/movies/${tmdbId}/metadata`, { method: 'PATCH', body: metadata })
+}
+
 // ─── Collections ──────────────────────────────────────────────────────────────
 
 export function getAllCollections() {

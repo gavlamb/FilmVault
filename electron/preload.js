@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateMovieTmdbData: (oldId, newId, poster) => ipcRenderer.invoke('db:updateMovieTmdbData', oldId, newId, poster),
   updateMoviePoster:   (tmdbId, localPath)    => ipcRenderer.invoke('db:updateMoviePoster', tmdbId, localPath),
   updateMovieRating:   (tmdbId, rating, votes) => ipcRenderer.invoke('db:updateMovieRating', tmdbId, rating, votes),
+  updateMovieMetadata: (tmdbId, metadata) => ipcRenderer.invoke('db:updateMovieMetadata', tmdbId, metadata),
 
   // Collections
   getAllCollections:  ()                   => ipcRenderer.invoke('db:getAllCollections'),

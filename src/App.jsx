@@ -162,6 +162,7 @@ function App() {
           movie={selectedMovie}
           onClose={handleModalClose}
           onSaved={handleSaved}
+          onMovieClick={handleMovieSelect}
         />
       )}
 

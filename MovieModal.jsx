@@ -495,7 +495,7 @@ function EditSection({ movie, libraryEntry, onSaved, onClose }) {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 
-export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
+export default function MovieModal({ movie, onClose, onSaved }) {
   const [libraryEntry,  setLibraryEntry]  = useState(undefined)   // undefined = loading
   const [extras,        setExtras]        = useState(null)        // TMDB enrichment data
   const [loadingExtras, setLoadingExtras] = useState(false)
@@ -593,19 +593,6 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
   function handleAdded() {
     onSaved()
     onClose()
-  }
-
-  function handlePersonMovieClick(film) {
-    setActivePerson(null)
-    onMovieClick?.({
-      tmdb_id:     film.tmdb_id,
-      title:       film.title,
-      year:        film.year,
-      poster_path: film.poster_path,
-      overview:    film.overview || '',
-      genres:      '[]',
-      runtime:     null,
-    })
   }
 
   return (
@@ -728,7 +715,6 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
         <PersonPanel
           person={activePerson}
           onClose={() => setActivePerson(null)}
-          onMovieClick={handlePersonMovieClick}
         />
       )}
     </div>

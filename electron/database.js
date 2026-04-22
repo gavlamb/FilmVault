@@ -93,6 +93,11 @@ function initSchema() {
   // Migrations — add columns introduced after initial schema (SQLite throws if already exists)
   try { db.exec('ALTER TABLE movies ADD COLUMN omdb_rating TEXT') } catch {}
   try { db.exec('ALTER TABLE movies ADD COLUMN omdb_votes  TEXT') } catch {}
+  try { db.exec('ALTER TABLE movies ADD COLUMN backdrop_path  TEXT')    } catch {}
+  try { db.exec('ALTER TABLE movies ADD COLUMN tagline        TEXT')    } catch {}
+  try { db.exec('ALTER TABLE movies ADD COLUMN director       TEXT')    } catch {}
+  try { db.exec('ALTER TABLE movies ADD COLUMN cast_json      TEXT')    } catch {}
+  try { db.exec('ALTER TABLE movies ADD COLUMN metadata_fetched_at TEXT') } catch {}
 
   // Insert defaults only for missing keys (INSERT OR IGNORE)
   const insertDefault = db.prepare(
@@ -185,6 +190,26 @@ function updateMovieRating(tmdbId, imdbRating, imdbVotes) {
   getDb()
     .prepare('UPDATE movies SET omdb_rating = ?, omdb_votes = ? WHERE tmdb_id = ?')
     .run(imdbRating ?? null, imdbVotes ?? null, tmdbId)
+}
+
+// Store enriched TMDB metadata (backdrop, tagline, director, cast).
+// Called once per movie on first modal open; avoids re-fetching on subsequent opens.
+function updateMovieMetadata(tmdbId, metadata) {
+  getDb().prepare(`
+    UPDATE movies SET
+      backdrop_path       = @backdrop_path,
+      tagline             = @tagline,
+      director            = @director,
+      cast_json           = @cast_json,
+      metadata_fetched_at = datetime('now')
+    WHERE tmdb_id = @tmdb_id
+  `).run({
+    tmdb_id:       tmdbId,
+    backdrop_path: metadata.backdrop_path ?? null,
+    tagline:       metadata.tagline       ?? null,
+    director:      metadata.director      ?? null,
+    cast_json:     metadata.cast_json     ?? null,
+  })
 }
 
 // ─── Collections ──────────────────────────────────────────────────────────────
@@ -352,6 +377,7 @@ module.exports = {
   updateMovieTmdbData,
   updateMoviePoster,
   updateMovieRating,
+  updateMovieMetadata,
   // Collections
   getAllCollections,
   addCollection,
