@@ -14,8 +14,6 @@ const db    = require('../../electron/database')
 const { getEbayToken, searchEbayUK, buildEbayQuery } = require('./ebay')
 
 let lastPollTime = null
-let nextPollTime = null
-let pollTimer    = null
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -150,39 +148,23 @@ async function runPoll() {
   }
 }
 
-// ─── Scheduler ────────────────────────────────────────────────────────────────
+// ─── Public API ──────────────────────────────────────────────────────────────
 
-function scheduleNext() {
-  const allListings = db.getAllEbayListings()
-  const intervalMs  = getIntervalMs(allListings)
-  nextPollTime      = new Date(Date.now() + intervalMs).toISOString()
-  console.log(`[eBay poller] Next poll in ${Math.round(intervalMs / 1000)}s`)
-  pollTimer = setTimeout(async () => {
-    await runPoll()
-    scheduleNext()
-  }, intervalMs)
-}
-
-// Start poller — initial poll fires after 10 s to let the server settle.
+// No-op kept for server/index.js compatibility. Background polling is disabled;
+// all polls are manually triggered via the "Refresh Now" button.
 function startPoller() {
-  console.log('[eBay poller] Starting background service…')
-  setTimeout(async () => {
-    await runPoll()
-    scheduleNext()
-  }, 10_000)
+  console.log('[eBay poller] Background polling disabled — manual refresh only')
 }
 
-// Trigger an immediate poll (from manual refresh button) and reschedule.
+// Triggered by POST /api/ebay/poll (the dashboard's "Refresh Now" button).
 async function triggerPoll() {
-  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null }
   await runPoll()
-  scheduleNext()
 }
 
 function getStatus() {
-  const now     = Date.now()
-  const all     = db.getAllEbayListings()
-  const urgent  = all.filter(
+  const now    = Date.now()
+  const all    = db.getAllEbayListings()
+  const urgent = all.filter(
     (l) => l.listing_type === 'AUCTION' &&
            l.end_time &&
            new Date(l.end_time).getTime() > now &&
@@ -190,7 +172,7 @@ function getStatus() {
   )
   return {
     lastPollTime,
-    nextPollTime,
+    nextPollTime:       null,       // no scheduled next poll in manual mode
     totalListings:      all.length,
     urgentAuctionCount: urgent.length,
   }

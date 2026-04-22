@@ -112,6 +112,15 @@ async function searchEbayUK(query, token) {
     req.end()
   })
 
+  // Surface API-level errors (rate limits, quota exceeded, etc.) instead of
+  // silently returning an empty list — that had been causing deleteStaleListings
+  // to wipe cached listings whenever we got throttled.
+  if (data.errors?.length) {
+    const err = data.errors[0]
+    const msg = `${err.errorId}: ${err.message || err.longMessage || 'Unknown error'}`
+    throw new Error(`eBay API error — ${msg}`)
+  }
+
   const now = new Date().toISOString()
   return (data.itemSummaries || []).map((item) => ({
     id:             item.itemId,

@@ -363,7 +363,7 @@ export default function EbayDashboard() {
               {status.nextPollTime && ` · next in ${relativeTime(status.nextPollTime).replace(' ago', '')}`}
             </p>
           ) : (
-            <p className="mt-0.5 text-xs text-gray-500">Not yet polled</p>
+            <p className="mt-0.5 text-xs text-gray-500">Press Refresh Now to fetch listings</p>
           )}
           {listingCount > 0 && (
             <p className="mt-0.5 text-xs text-gray-600">

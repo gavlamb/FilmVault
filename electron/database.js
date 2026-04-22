@@ -98,6 +98,7 @@ function initSchema() {
   try { db.exec('ALTER TABLE movies ADD COLUMN director       TEXT')    } catch {}
   try { db.exec('ALTER TABLE movies ADD COLUMN cast_json      TEXT')    } catch {}
   try { db.exec('ALTER TABLE movies ADD COLUMN metadata_fetched_at TEXT') } catch {}
+  try { db.exec('ALTER TABLE movies ADD COLUMN logo_path TEXT') } catch {}
 
   // Insert defaults only for missing keys (INSERT OR IGNORE)
   const insertDefault = db.prepare(
@@ -117,6 +118,16 @@ function initSchema() {
     try {
       db.exec("UPDATE movies SET metadata_fetched_at = NULL")
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(migrationKey, 'done')
+    } catch {}
+  }
+
+  // One-off migration: invalidate metadata caches so existing entries re-fetch with logo_path
+  const logoMigrationKey = 'logo_migration_v1'
+  const logoAlreadyRun = db.prepare('SELECT value FROM settings WHERE key = ?').get(logoMigrationKey)
+  if (!logoAlreadyRun) {
+    try {
+      db.exec("UPDATE movies SET metadata_fetched_at = NULL")
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(logoMigrationKey, 'done')
     } catch {}
   }
 }
@@ -202,7 +213,7 @@ function updateMovieRating(tmdbId, imdbRating, imdbVotes) {
     .run(imdbRating ?? null, imdbVotes ?? null, tmdbId)
 }
 
-// Store enriched TMDB metadata (backdrop, tagline, director, cast).
+// Store enriched TMDB metadata (backdrop, tagline, director, cast, logo).
 // Called once per movie on first modal open; avoids re-fetching on subsequent opens.
 function updateMovieMetadata(tmdbId, metadata) {
   getDb().prepare(`
@@ -211,6 +222,7 @@ function updateMovieMetadata(tmdbId, metadata) {
       tagline             = @tagline,
       director            = @director,
       cast_json           = @cast_json,
+      logo_path           = @logo_path,
       metadata_fetched_at = datetime('now')
     WHERE tmdb_id = @tmdb_id
   `).run({
@@ -219,6 +231,7 @@ function updateMovieMetadata(tmdbId, metadata) {
     tagline:       metadata.tagline       ?? null,
     director:      metadata.director      ?? null,
     cast_json:     metadata.cast_json     ?? null,
+    logo_path:     metadata.logo_path     ?? null,
   })
 }
 

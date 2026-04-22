@@ -133,12 +133,38 @@ export async function getMovieDetails(tmdbId, apiKey) {
   return mapDetailResult(data)
 }
 
-// Fetches full metadata used by the detail modal — credits, backdrop, tagline.
+// Pick the best logo from TMDB's images response.
+// Prefer English, then language-neutral. Prefer SVG over PNG (scales perfectly).
+// Then sort by vote_average desc, vote_count desc.
+function pickBestLogo(logos) {
+  if (!Array.isArray(logos) || logos.length === 0) return null
+
+  const score = (logo) => {
+    let s = 0
+    // Language preference: English best, null (neutral) second
+    if (logo.iso_639_1 === 'en')   s += 100
+    else if (logo.iso_639_1 === null || logo.iso_639_1 === '') s += 50
+    // SVG scales cleanly — strong preference
+    if (logo.file_path?.endsWith('.svg')) s += 30
+    // Community quality signal
+    s += (logo.vote_average || 0) * 2
+    s += Math.min(logo.vote_count || 0, 20) * 0.1
+    return s
+  }
+
+  const sorted = [...logos]
+    .filter((l) => l.file_path)
+    .sort((a, b) => score(b) - score(a))
+
+  return sorted[0] || null
+}
+
+// Fetches full metadata used by the detail modal — credits, backdrop, tagline, logo.
 // Uses append_to_response to do it in one request.
 export async function getFullMovieDetails(tmdbId, apiKey) {
   if (!apiKey || !apiKey.trim()) throw new Error('NO_API_KEY')
 
-  const url  = `${TMDB_BASE}/movie/${tmdbId}?language=en-US&append_to_response=credits`
+  const url  = `${TMDB_BASE}/movie/${tmdbId}?language=en-US&append_to_response=credits,images&include_image_language=en,null`
   const data = await apiFetch(url, apiKey)
 
   const director = (data.credits?.crew || [])
@@ -151,6 +177,11 @@ export async function getFullMovieDetails(tmdbId, apiKey) {
       profile:   profileUrl(c.profile_path),
     }))
 
+  const bestLogo = pickBestLogo(data.images?.logos)
+  const logo_path = bestLogo
+    ? `${BACKDROP_BASE}${bestLogo.file_path}`
+    : null
+
   return {
     backdrop_path: backdropUrl(data.backdrop_path),
     tagline:       data.tagline || null,
@@ -158,6 +189,7 @@ export async function getFullMovieDetails(tmdbId, apiKey) {
       ? JSON.stringify({ id: director.id, name: director.name, profile: profileUrl(director.profile_path) })
       : null,
     cast_json:     JSON.stringify(cast),
+    logo_path,
     genres:        JSON.stringify((data.genres || []).map((g) => g.name)),
     runtime:       data.runtime || null,
     overview:      data.overview || '',

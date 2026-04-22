@@ -537,6 +537,7 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
           tagline:       cached.tagline,
           director:      safeParse(cached.director, null),
           cast:          safeParse(cached.cast_json, []),
+          logo_path:     cached.logo_path,
         })
         return
       }
@@ -553,6 +554,7 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
           tagline:       full.tagline,
           director:      safeParse(full.director, null),
           cast:          safeParse(full.cast_json, []),
+          logo_path:     full.logo_path,
         })
 
         // Persist to DB only when movie is in library (no phantom rows)
@@ -562,6 +564,7 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
             tagline:       full.tagline,
             director:      full.director,
             cast_json:     full.cast_json,
+            logo_path:     full.logo_path,
           }).catch(() => {})
         }
       } catch {
@@ -665,7 +668,21 @@ export default function MovieModal({ movie, onClose, onSaved, onMovieClick }) {
 
           <div className="flex min-w-0 flex-1 flex-col gap-4 sm:pt-4">
             <div className="space-y-1.5">
-              <h2 className="text-2xl font-bold leading-tight text-white sm:text-3xl">
+              {display.logo_path ? (
+                <img
+                  src={display.logo_path}
+                  alt={display.title}
+                  className="max-h-20 w-auto max-w-full object-contain object-left drop-shadow-lg sm:max-h-24"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none'
+                    e.currentTarget.nextElementSibling?.style.setProperty('display', 'block')
+                  }}
+                />
+              ) : null}
+              <h2
+                className="text-2xl font-bold leading-tight text-white sm:text-3xl"
+                style={display.logo_path ? { display: 'none' } : undefined}
+              >
                 {display.title}
               </h2>
               {display.tagline && (
